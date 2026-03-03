@@ -1,4 +1,5 @@
 <p-toast></p-toast>
+<p-confirmdialog></p-confirmdialog>
 
 <div class="page-container">
 
@@ -128,6 +129,15 @@
                         size="small"
                         [disabled]="!isLoggedIn"
                         (onClick)="startEdit()"
+                    ></p-button>
+                    <p-button
+                        label="Eliminar Perfil"
+                        icon="pi pi-trash"
+                        size="small"
+                        severity="danger"
+                        [outlined]="true"
+                        [disabled]="!isLoggedIn"
+                        (onClick)="confirmDeleteProfile()"
                     ></p-button>
                 }
             </div>
