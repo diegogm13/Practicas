@@ -64,7 +64,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
                 label: 'Grupos',
                 icon: 'pi pi-users',
                 routerLink: '/dashboard/grupos',
-                styleClass: url.includes('/dashboard/grupos') ? 'menu-active-item' : '',
+                styleClass: (url.includes('/dashboard/grupos') || url.includes('/dashboard/tickets/')) ? 'menu-active-item' : '',
             },
             {
                 label: 'Usuarios',
@@ -78,16 +78,16 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
                 routerLink: '/dashboard/perfil',
                 styleClass: url.includes('/dashboard/perfil') ? 'menu-active-item' : '',
             },
-            {
-                label: 'Reportes',
-                icon: 'pi pi-chart-bar',
-                styleClass: '',
-            },
         ];
     }
 
     updateBreadcrumb(url: string): void {
-        if (url.includes('/dashboard/grupos')) {
+        if (url.includes('/dashboard/tickets/')) {
+            const grupoId = url.split('/dashboard/tickets/')[1]?.split('/')[0];
+            const grupoNames: Record<string, string> = { '1': 'Grupo Alpha', '2': 'Grupo Beta', '3': 'Grupo Gamma' };
+            const nombre = grupoNames[grupoId] ?? `Grupo ${grupoId}`;
+            this.breadcrumbItems = [{ label: 'Grupos', routerLink: '/dashboard/grupos' }, { label: `Tickets — ${nombre}` }];
+        } else if (url.includes('/dashboard/grupos')) {
             this.breadcrumbItems = [{ label: 'Grupos' }];
         } else if (url.includes('/dashboard/usuarios')) {
             this.breadcrumbItems = [{ label: 'Usuarios' }];

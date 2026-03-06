@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { DialogModule } from 'primeng/dialog';
@@ -10,6 +11,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { TooltipModule } from 'primeng/tooltip';
 import { MessageService, ConfirmationService } from 'primeng/api';
 
 export interface Group {
@@ -37,6 +39,7 @@ export interface Group {
         InputNumberModule,
         SelectModule,
         ConfirmDialogModule,
+        TooltipModule,
     ],
     providers: [MessageService, ConfirmationService],
     templateUrl: './grupos.component.html',
@@ -66,8 +69,13 @@ export class GruposComponent implements OnInit {
     constructor(
         private fb: FormBuilder,
         private messageService: MessageService,
-        private confirmationService: ConfirmationService
+        private confirmationService: ConfirmationService,
+        private router: Router,
     ) {}
+
+    verTickets(group: Group): void {
+        this.router.navigate(['/dashboard/tickets', group.id]);
+    }
 
     ngOnInit(): void {
         this.groups = [

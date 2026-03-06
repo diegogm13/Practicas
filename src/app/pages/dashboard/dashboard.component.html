@@ -19,42 +19,121 @@
     </div>
     }
 
-    <!-- Quick access cards -->
+    <!-- Stats cards (only when logged in) -->
+    @if (isLoggedIn) {
+    <div class="stats-grid">
+        <div class="stat-card stat-total">
+            <div class="stat-icon"><i class="pi pi-ticket"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">{{ stats.total }}</span>
+                <span class="stat-label">Total Tickets</span>
+            </div>
+        </div>
+        <div class="stat-card stat-pendiente">
+            <div class="stat-icon"><i class="pi pi-clock"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">{{ stats.pendiente }}</span>
+                <span class="stat-label">Pendientes</span>
+            </div>
+        </div>
+        <div class="stat-card stat-progreso">
+            <div class="stat-icon"><i class="pi pi-spin pi-spinner"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">{{ stats.enProgreso }}</span>
+                <span class="stat-label">En Progreso</span>
+            </div>
+        </div>
+        <div class="stat-card stat-revision">
+            <div class="stat-icon"><i class="pi pi-eye"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">{{ stats.revision }}</span>
+                <span class="stat-label">En Revisión</span>
+            </div>
+        </div>
+        <div class="stat-card stat-finalizado">
+            <div class="stat-icon"><i class="pi pi-check-circle"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">{{ stats.finalizado }}</span>
+                <span class="stat-label">Finalizados</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart + Quick access -->
+    <div class="dashboard-main">
+        <p-card class="chart-card">
+            <ng-template pTemplate="header">
+                <div class="chart-card-header">
+                    <i class="pi pi-chart-pie"></i>
+                    <span>Distribución de Tickets por Estado</span>
+                </div>
+            </ng-template>
+            <div class="chart-wrapper">
+                <p-chart type="pie" [data]="chartData" [options]="chartOptions" height="280px"></p-chart>
+            </div>
+        </p-card>
+
+        <div class="quick-access-col">
+            <p-card class="quick-card" [routerLink]="['/dashboard/grupos']">
+                <div class="quick-card-content">
+                    <div class="quick-icon-box blue"><i class="pi pi-users"></i></div>
+                    <div class="quick-info">
+                        <span class="quick-title">Grupos</span>
+                        <span class="quick-desc">Ver grupos y tickets</span>
+                    </div>
+                    <i class="pi pi-chevron-right quick-arrow"></i>
+                </div>
+            </p-card>
+
+            <p-card class="quick-card" [routerLink]="['/dashboard/perfil']">
+                <div class="quick-card-content">
+                    <div class="quick-icon-box green"><i class="pi pi-user"></i></div>
+                    <div class="quick-info">
+                        <span class="quick-title">Mi Perfil</span>
+                        <span class="quick-desc">Información de tu cuenta</span>
+                    </div>
+                    <i class="pi pi-chevron-right quick-arrow"></i>
+                </div>
+            </p-card>
+
+            <p-card class="quick-card" [routerLink]="['/dashboard/usuarios']">
+                <div class="quick-card-content">
+                    <div class="quick-icon-box orange"><i class="pi pi-user-edit"></i></div>
+                    <div class="quick-info">
+                        <span class="quick-title">Usuarios</span>
+                        <span class="quick-desc">Gestión de usuarios</span>
+                    </div>
+                    <i class="pi pi-chevron-right quick-arrow"></i>
+                </div>
+            </p-card>
+        </div>
+    </div>
+    } @else {
+    <!-- Quick access cards for guests -->
     <div class="quick-access-grid">
 
         <p-card class="quick-card" [routerLink]="['/dashboard/grupos']">
             <div class="quick-card-content">
-                <p-avatar icon="pi pi-users" shape="square" class="quick-avatar blue-avatar"></p-avatar>
+                <div class="quick-icon-box blue"><i class="pi pi-users"></i></div>
                 <div class="quick-info">
                     <span class="quick-title">Grupos</span>
                     <span class="quick-desc">Ver estadísticas y avance</span>
                 </div>
-                <p-avatar icon="pi pi-chevron-right" class="arrow-avatar"></p-avatar>
+                <i class="pi pi-chevron-right quick-arrow"></i>
             </div>
         </p-card>
 
         <p-card class="quick-card" [routerLink]="['/dashboard/perfil']">
             <div class="quick-card-content">
-                <p-avatar icon="pi pi-user" shape="square" class="quick-avatar green-avatar"></p-avatar>
+                <div class="quick-icon-box green"><i class="pi pi-user"></i></div>
                 <div class="quick-info">
                     <span class="quick-title">Mi Perfil</span>
                     <span class="quick-desc">Información de tu cuenta</span>
                 </div>
-                <p-avatar icon="pi pi-chevron-right" class="arrow-avatar"></p-avatar>
+                <i class="pi pi-chevron-right quick-arrow"></i>
             </div>
         </p-card>
-
-        <p-card class="quick-card">
-            <div class="quick-card-content">
-                <p-avatar icon="pi pi-chart-bar" shape="square" class="quick-avatar orange-avatar"></p-avatar>
-                <div class="quick-info">
-                    <span class="quick-title">Reportes</span>
-                    <span class="quick-desc">Análisis y métricas</span>
-                </div>
-                <p-avatar icon="pi pi-chevron-right" class="arrow-avatar"></p-avatar>
-            </div>
-        </p-card>
-
     </div>
+    }
 
 </div>

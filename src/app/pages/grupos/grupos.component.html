@@ -59,6 +59,14 @@
                 <td style="text-align:center">{{ group.tickets }}</td>
                 <td style="text-align:center">
                     <p-button
+                        icon="pi pi-ticket"
+                        [text]="true"
+                        severity="success"
+                        (onClick)="verTickets(group)"
+                        pTooltip="Ver Tickets"
+                        tooltipPosition="top"
+                    ></p-button>
+                    <p-button
                         icon="pi pi-pencil"
                         [text]="true"
                         severity="info"
