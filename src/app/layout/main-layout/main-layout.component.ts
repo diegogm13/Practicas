@@ -65,12 +65,14 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
                 icon: 'pi pi-users',
                 routerLink: '/dashboard/grupos',
                 styleClass: (url.includes('/dashboard/grupos') || url.includes('/dashboard/tickets/')) ? 'menu-active-item' : '',
+                visible: this.authService.hasPermission('group:view'),
             },
             {
                 label: 'Usuarios',
                 icon: 'pi pi-user-edit',
                 routerLink: '/dashboard/usuarios',
                 styleClass: url.includes('/dashboard/usuarios') ? 'menu-active-item' : '',
+                visible: this.authService.hasPermission('users:view'),
             },
             {
                 label: 'Perfil',

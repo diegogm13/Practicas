@@ -1,24 +1,24 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { DialogModule } from 'primeng/dialog';
 import { ToastModule } from 'primeng/toast';
 import { ToolbarModule } from 'primeng/toolbar';
 import { InputTextModule } from 'primeng/inputtext';
-import { SelectModule } from 'primeng/select';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { CheckboxModule } from 'primeng/checkbox';
 import { MessageService, ConfirmationService } from 'primeng/api';
+import { HasPermissionDirective } from '../../directives/has-permission.directive';
+import { AuthService, Permission } from '../../services/auth.service';
 
 export interface Usuario {
     id: number;
     nombre: string;
     apellido: string;
     correo: string;
-    rol: string;
-    grupo: string;
     activo: boolean;
 }
 
@@ -27,6 +27,7 @@ export interface Usuario {
     standalone: true,
     imports: [
         CommonModule,
+        FormsModule,
         ReactiveFormsModule,
         ButtonModule,
         TableModule,
@@ -34,9 +35,10 @@ export interface Usuario {
         ToastModule,
         ToolbarModule,
         InputTextModule,
-        SelectModule,
         ToggleSwitchModule,
         ConfirmDialogModule,
+        CheckboxModule,
+        HasPermissionDirective,
     ],
     providers: [MessageService, ConfirmationService],
     templateUrl: './usuarios.component.html',
@@ -50,64 +52,22 @@ export class UsuariosComponent implements OnInit {
     editingId: number | null = null;
     private nextId = 5;
 
-    roles = [
-        { label: 'Administrador', value: 'Administrador' },
-        { label: 'Editor', value: 'Editor' },
-        { label: 'Visualizador', value: 'Visualizador' },
-        { label: 'Soporte', value: 'Soporte' },
-    ];
-
-    grupos = [
-        { label: 'Grupo Alpha', value: 'Grupo Alpha' },
-        { label: 'Grupo Beta', value: 'Grupo Beta' },
-        { label: 'Grupo Gamma', value: 'Grupo Gamma' },
-        { label: 'Sin grupo', value: 'Sin grupo' },
-    ];
+    allPermissions: Permission[] = [];
+    selectedPermissions: Permission[] = [];
 
     constructor(
         private fb: FormBuilder,
         private messageService: MessageService,
-        private confirmationService: ConfirmationService
+        private confirmationService: ConfirmationService,
+        private authService: AuthService,
     ) {}
 
     ngOnInit(): void {
+        this.allPermissions = this.authService.getAllAvailablePermissions();
         this.usuarios = [
-            {
-                id: 1,
-                nombre: 'Carlos',
-                apellido: 'Ramírez',
-                correo: 'admin@miapp.com',
-                rol: 'Administrador',
-                grupo: 'Grupo Alpha',
-                activo: true,
-            },
-            {
-                id: 2,
-                nombre: 'Laura',
-                apellido: 'Mendoza',
-                correo: 'usuario@miapp.com',
-                rol: 'Editor',
-                grupo: 'Grupo Beta',
-                activo: true,
-            },
-            {
-                id: 3,
-                nombre: 'Pedro',
-                apellido: 'Soto',
-                correo: 'test@miapp.com',
-                rol: 'Visualizador',
-                grupo: 'Grupo Gamma',
-                activo: false,
-            },
-            {
-                id: 4,
-                nombre: 'Ana',
-                apellido: 'Torres',
-                correo: 'ana.torres@miapp.com',
-                rol: 'Soporte',
-                grupo: 'Sin grupo',
-                activo: true,
-            },
+            { id: 1, nombre: 'Carlos', apellido: 'Ramírez', correo: 'admin@miapp.com', activo: true },
+            { id: 2, nombre: 'Laura', apellido: 'Mendoza', correo: 'usuario@miapp.com', activo: true },
+            { id: 3, nombre: 'Pedro', apellido: 'Soto', correo: 'test@miapp.com', activo: false },
         ];
         this.buildForm();
     }
@@ -117,8 +77,6 @@ export class UsuariosComponent implements OnInit {
             nombre: ['', [Validators.required, Validators.minLength(2)]],
             apellido: ['', [Validators.required, Validators.minLength(2)]],
             correo: ['', [Validators.required, Validators.email]],
-            rol: ['', Validators.required],
-            grupo: ['', Validators.required],
             activo: [true],
         });
     }
@@ -126,6 +84,7 @@ export class UsuariosComponent implements OnInit {
     openNew(): void {
         this.isEditMode = false;
         this.editingId = null;
+        this.selectedPermissions = [];
         this.usuarioForm.reset({ activo: true });
         this.dialogVisible = true;
     }
@@ -133,12 +92,11 @@ export class UsuariosComponent implements OnInit {
     editUsuario(usuario: Usuario): void {
         this.isEditMode = true;
         this.editingId = usuario.id;
+        this.selectedPermissions = this.authService.getUserPermissions(usuario.correo);
         this.usuarioForm.patchValue({
             nombre: usuario.nombre,
             apellido: usuario.apellido,
             correo: usuario.correo,
-            rol: usuario.rol,
-            grupo: usuario.grupo,
             activo: usuario.activo,
         });
         this.dialogVisible = true;
@@ -147,47 +105,30 @@ export class UsuariosComponent implements OnInit {
     saveUsuario(): void {
         if (this.usuarioForm.invalid) {
             this.usuarioForm.markAllAsTouched();
-            this.messageService.add({
-                severity: 'warn',
-                summary: 'Formulario inválido',
-                detail: 'Completa todos los campos requeridos correctamente.',
-            });
             return;
         }
 
-        try {
-            const formValue = this.usuarioForm.value;
-            const nombreCompleto = `${formValue.nombre} ${formValue.apellido}`;
+        const formValue = this.usuarioForm.value;
+        const email = formValue.correo;
 
-            if (this.isEditMode && this.editingId !== null) {
-                const idx = this.usuarios.findIndex((u) => u.id === this.editingId);
-                if (idx !== -1) {
-                    this.usuarios[idx] = { id: this.editingId, ...formValue };
-                    this.usuarios = [...this.usuarios];
-                }
-                this.messageService.add({
-                    severity: 'success',
-                    summary: 'Usuario actualizado',
-                    detail: `"${nombreCompleto}" se actualizó correctamente.`,
-                });
-            } else {
-                const newUsuario: Usuario = { id: this.nextId++, ...formValue };
-                this.usuarios = [...this.usuarios, newUsuario];
-                this.messageService.add({
-                    severity: 'success',
-                    summary: 'Usuario creado',
-                    detail: `"${nombreCompleto}" se creó correctamente.`,
-                });
+        if (this.isEditMode && this.editingId !== null) {
+            const idx = this.usuarios.findIndex((u) => u.id === this.editingId);
+            if (idx !== -1) {
+                this.usuarios[idx] = { id: this.editingId, ...formValue };
+                this.usuarios = [...this.usuarios];
             }
-
-            this.dialogVisible = false;
-        } catch {
-            this.messageService.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: 'No se pudo guardar el usuario. Intenta de nuevo.',
-            });
+        } else {
+            const newUsuario: Usuario = { id: this.nextId++, ...formValue };
+            this.usuarios = [...this.usuarios, newUsuario];
         }
+
+        this.authService.setUserPermissions(email, this.selectedPermissions);
+        this.messageService.add({
+            severity: 'success',
+            summary: this.isEditMode ? 'Usuario actualizado' : 'Usuario creado',
+            detail: 'Los permisos granulares han sido aplicados correctamente.',
+        });
+        this.dialogVisible = false;
     }
 
     deleteUsuario(usuario: Usuario): void {
@@ -195,26 +136,18 @@ export class UsuariosComponent implements OnInit {
             message: `¿Estás seguro de eliminar al usuario "<b>${usuario.nombre} ${usuario.apellido}</b>"?`,
             header: 'Confirmar eliminación',
             icon: 'pi pi-exclamation-triangle',
-            acceptLabel: 'Sí, eliminar',
-            rejectLabel: 'Cancelar',
-            acceptButtonStyleClass: 'p-button-danger',
             accept: () => {
-                try {
-                    this.usuarios = this.usuarios.filter((u) => u.id !== usuario.id);
-                    this.messageService.add({
-                        severity: 'success',
-                        summary: 'Usuario eliminado',
-                        detail: `"${usuario.nombre} ${usuario.apellido}" fue eliminado correctamente.`,
-                    });
-                } catch {
-                    this.messageService.add({
-                        severity: 'error',
-                        summary: 'Error',
-                        detail: 'No se pudo eliminar el usuario.',
-                    });
-                }
+                this.usuarios = this.usuarios.filter((u) => u.id !== usuario.id);
+                this.messageService.add({ severity: 'success', summary: 'Usuario eliminado' });
             },
         });
+    }
+
+    getPermissionsDescription(email: string): string {
+        const perms = this.authService.getUserPermissions(email);
+        if (perms.length === 0) return 'Sin permisos';
+        if (perms.length === this.allPermissions.length) return 'SuperAdmin (Todos)';
+        return `${perms.length} permisos asignados`;
     }
 
     closeDialog(): void {

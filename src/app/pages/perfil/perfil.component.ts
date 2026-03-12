@@ -8,14 +8,26 @@ import { AvatarModule } from 'primeng/avatar';
 import { InputTextModule } from 'primeng/inputtext';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { TagModule } from 'primeng/tag';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { AuthService } from '../../services/auth.service';
+import { TicketService, Ticket } from '../../services/ticket.service';
 
 @Component({
     selector: 'app-perfil',
     standalone: true,
     providers: [MessageService, ConfirmationService],
-    imports: [CommonModule, FormsModule, ButtonModule, CardModule, AvatarModule, InputTextModule, ToastModule, ConfirmDialogModule],
+    imports: [
+        CommonModule, 
+        FormsModule, 
+        ButtonModule, 
+        CardModule, 
+        AvatarModule, 
+        InputTextModule, 
+        ToastModule, 
+        ConfirmDialogModule,
+        TagModule
+    ],
     templateUrl: './perfil.component.html',
     styleUrl: './perfil.component.css',
 })
@@ -24,15 +36,15 @@ export class PerfilComponent implements OnInit {
     currentUser = '';
     editMode = false;
 
-    profileName = 'Juan Developer';
-    profileRole = 'Senior Developer';
+    profileName = 'Usuario ERP';
+    userTickets: Ticket[] = [];
 
     // Copias de edición
     editName = '';
-    editRole = '';
 
     constructor(
         private authService: AuthService,
+        private ticketService: TicketService,
         private messageService: MessageService,
         private confirmationService: ConfirmationService,
         private router: Router
@@ -41,40 +53,42 @@ export class PerfilComponent implements OnInit {
     ngOnInit(): void {
         this.isLoggedIn = this.authService.isLoggedIn();
         this.currentUser = this.authService.getCurrentUser();
+        this.loadWorkload();
+    }
+
+    loadWorkload(): void {
+        // Obtenemos todos los tickets simulando una carga global
+        const allTickets = this.ticketService.getAllTickets();
+        this.userTickets = allTickets.filter(t => t.asignadoA === this.currentUser);
+    }
+
+    get pendingTicketsCount(): number {
+        // En TicketService, los estados son 'Abierto', 'En Progreso', 'En Revisión', 'Cerrado'
+        return this.userTickets.filter(t => t.estado !== 'Cerrado' as any).length;
     }
 
     startEdit(): void {
         this.editName = this.profileName;
-        this.editRole = this.profileRole;
         this.editMode = true;
     }
 
     saveProfile(): void {
-        if (!this.editName.trim() || !this.editRole.trim()) {
+        if (!this.editName.trim()) {
             this.messageService.add({
                 severity: 'warn',
                 summary: 'Campos vacíos',
-                detail: 'El nombre y el rol no pueden estar vacíos.',
+                detail: 'El nombre no puede estar vacío.',
             });
             return;
         }
 
-        try {
-            this.profileName = this.editName.trim();
-            this.profileRole = this.editRole.trim();
-            this.editMode = false;
-            this.messageService.add({
-                severity: 'success',
-                summary: 'Perfil actualizado',
-                detail: 'Tus datos se guardaron correctamente.',
-            });
-        } catch {
-            this.messageService.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: 'No se pudo guardar el perfil. Intenta de nuevo.',
-            });
-        }
+        this.profileName = this.editName.trim();
+        this.editMode = false;
+        this.messageService.add({
+            severity: 'success',
+            summary: 'Perfil actualizado',
+            detail: 'Tus datos se guardaron correctamente.',
+        });
     }
 
     cancelEdit(): void {

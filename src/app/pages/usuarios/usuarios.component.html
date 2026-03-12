@@ -3,16 +3,15 @@
 
 <div class="page-container">
 
-    <!-- Header -->
     <div class="page-header">
-        <h2>Usuarios</h2>
-        <p>Gestión y administración de usuarios registrados en el sistema.</p>
+        <h2>Gestión de Usuarios (Permisos Granulares)</h2>
+        <p>Administra permisos específicos por usuario. Los roles han sido eliminados por seguridad.</p>
     </div>
 
-    <!-- Toolbar -->
     <p-toolbar class="usuarios-toolbar">
         <ng-template pTemplate="start">
             <p-button
+                *hasPermission="'user:add'"
                 label="Nuevo Usuario"
                 icon="pi pi-user-plus"
                 (onClick)="openNew()"
@@ -23,22 +22,18 @@
         </ng-template>
     </p-toolbar>
 
-    <!-- Table -->
     <p-table
         [value]="usuarios"
         [paginator]="true"
-        [rows]="8"
-        [rowsPerPageOptions]="[5, 8, 15]"
+        [rows]="10"
         responsiveLayout="scroll"
-        [stripedRows]="true"
         class="usuarios-table"
     >
         <ng-template pTemplate="header">
             <tr>
-                <th>Nombre</th>
-                <th>Correo</th>
-                <th>Rol</th>
-                <th>Grupo</th>
+                <th>Nombre Completo</th>
+                <th>Correo Electrónico</th>
+                <th>Permisos</th>
                 <th style="text-align:center">Estado</th>
                 <th style="text-align:center">Acciones</th>
             </tr>
@@ -49,11 +44,8 @@
                 <td><strong>{{ usuario.nombre }} {{ usuario.apellido }}</strong></td>
                 <td>{{ usuario.correo }}</td>
                 <td>
-                    <span [class]="'rol-badge rol-' + usuario.rol.toLowerCase()">
-                        {{ usuario.rol }}
-                    </span>
+                    <span class="permissions-badge">{{ getPermissionsDescription(usuario.correo) }}</span>
                 </td>
-                <td>{{ usuario.grupo }}</td>
                 <td style="text-align:center">
                     <span [class]="'estado-badge ' + (usuario.activo ? 'estado-activo' : 'estado-inactivo')">
                         {{ usuario.activo ? 'Activo' : 'Inactivo' }}
@@ -61,30 +53,21 @@
                 </td>
                 <td style="text-align:center">
                     <p-button
-                        icon="pi pi-pencil"
+                        *hasPermission="'user:edit'"
+                        icon="pi pi-shield"
                         [text]="true"
                         severity="info"
                         (onClick)="editUsuario(usuario)"
-                        pTooltip="Editar"
-                        tooltipPosition="top"
+                        pTooltip="Gestionar Permisos"
                     ></p-button>
                     <p-button
+                        *hasPermission="'user:delete'"
                         icon="pi pi-trash"
                         [text]="true"
                         severity="danger"
                         (onClick)="deleteUsuario(usuario)"
                         pTooltip="Eliminar"
-                        tooltipPosition="top"
                     ></p-button>
-                </td>
-            </tr>
-        </ng-template>
-
-        <ng-template pTemplate="emptymessage">
-            <tr>
-                <td colspan="6" class="empty-message">
-                    <i class="pi pi-users empty-icon"></i>
-                    <span>No hay usuarios registrados. Crea uno nuevo.</span>
                 </td>
             </tr>
         </ng-template>
@@ -92,125 +75,62 @@
 
 </div>
 
-<!-- Dialog Crear / Editar -->
 <p-dialog
     [(visible)]="dialogVisible"
-    [header]="isEditMode ? 'Editar Usuario' : 'Nuevo Usuario'"
+    [header]="isEditMode ? 'Gestionar Permisos de Usuario' : 'Nuevo Usuario'"
     [modal]="true"
-    [style]="{ width: '500px' }"
-    [closable]="true"
+    [style]="{ width: '600px' }"
     (onHide)="closeDialog()"
 >
-    <form [formGroup]="usuarioForm" class="usuario-form">
+    <div class="user-dialog-content">
+        <form [formGroup]="usuarioForm" class="usuario-form">
+            <div class="field-row">
+                <div class="field">
+                    <label>Nombre</label>
+                    <input type="text" pInputText formControlName="nombre" class="w-full" />
+                </div>
+                <div class="field">
+                    <label>Apellido</label>
+                    <input type="text" pInputText formControlName="apellido" class="w-full" />
+                </div>
+            </div>
 
-        <!-- Nombre y Apellido en fila -->
-        <div class="field-row">
             <div class="field">
-                <label for="nombre">Nombre <span class="required">*</span></label>
-                <input
-                    id="nombre"
-                    type="text"
-                    pInputText
-                    formControlName="nombre"
-                    placeholder="Nombre"
-                    [class.ng-invalid]="isInvalid('nombre')"
-                    [class.ng-dirty]="isInvalid('nombre')"
-                />
-                @if (isInvalid('nombre')) {
-                    <small class="p-error">Nombre requerido (mínimo 2 caracteres).</small>
+                <label>Correo Electrónico</label>
+                <input type="email" pInputText formControlName="correo" class="w-full" [readOnly]="isEditMode" />
+            </div>
+
+            <div class="field active-toggle">
+                <label>Usuario Activo</label>
+                <div class="toggle-container">
+                    <p-toggleswitch formControlName="activo"></p-toggleswitch>
+                    <span class="toggle-text">{{ usuarioForm.get('activo')?.value ? 'Sí' : 'No' }}</span>
+                </div>
+            </div>
+        </form>
+
+        <div class="permissions-manager">
+            <h4><i class="pi pi-lock-open"></i> Asignación de Permisos Granulares</h4>
+            <p class="section-desc">Selecciona cada permiso individual que el usuario ostentará.</p>
+            
+            <div class="permissions-grid">
+                @for (perm of allPermissions; track perm) {
+                    <div class="perm-card">
+                        <p-checkbox
+                            [value]="perm"
+                            [(ngModel)]="selectedPermissions"
+                            [inputId]="'chk-' + perm"
+                            name="perms"
+                        ></p-checkbox>
+                        <label [for]="'chk-' + perm" class="ml-2">{{ perm }}</label>
+                    </div>
                 }
             </div>
-            <div class="field">
-                <label for="apellido">Apellido <span class="required">*</span></label>
-                <input
-                    id="apellido"
-                    type="text"
-                    pInputText
-                    formControlName="apellido"
-                    placeholder="Apellido"
-                    [class.ng-invalid]="isInvalid('apellido')"
-                    [class.ng-dirty]="isInvalid('apellido')"
-                />
-                @if (isInvalid('apellido')) {
-                    <small class="p-error">Apellido requerido (mínimo 2 caracteres).</small>
-                }
-            </div>
         </div>
-
-        <!-- Correo -->
-        <div class="field">
-            <label for="correo">Correo electrónico <span class="required">*</span></label>
-            <input
-                id="correo"
-                type="email"
-                pInputText
-                formControlName="correo"
-                placeholder="correo@ejemplo.com"
-                [class.ng-invalid]="isInvalid('correo')"
-                [class.ng-dirty]="isInvalid('correo')"
-            />
-            @if (isInvalid('correo')) {
-                <small class="p-error">Ingresa un correo electrónico válido.</small>
-            }
-        </div>
-
-        <!-- Rol -->
-        <div class="field">
-            <label for="rol">Rol <span class="required">*</span></label>
-            <p-select
-                id="rol"
-                formControlName="rol"
-                [options]="roles"
-                placeholder="Selecciona un rol"
-                [class.ng-invalid]="isInvalid('rol')"
-                styleClass="w-full"
-            ></p-select>
-            @if (isInvalid('rol')) {
-                <small class="p-error">El rol es requerido.</small>
-            }
-        </div>
-
-        <!-- Grupo -->
-        <div class="field">
-            <label for="grupo">Grupo <span class="required">*</span></label>
-            <p-select
-                id="grupo"
-                formControlName="grupo"
-                [options]="grupos"
-                placeholder="Selecciona un grupo"
-                [class.ng-invalid]="isInvalid('grupo')"
-                styleClass="w-full"
-            ></p-select>
-            @if (isInvalid('grupo')) {
-                <small class="p-error">El grupo es requerido.</small>
-            }
-        </div>
-
-        <!-- Estado activo -->
-        <div class="field field-toggle">
-            <label>Estado</label>
-            <div class="toggle-row">
-                <p-toggleswitch formControlName="activo"></p-toggleswitch>
-                <span class="toggle-label">
-                    {{ usuarioForm.get('activo')?.value ? 'Activo' : 'Inactivo' }}
-                </span>
-            </div>
-        </div>
-
-    </form>
+    </div>
 
     <ng-template pTemplate="footer">
-        <p-button
-            label="Cancelar"
-            icon="pi pi-times"
-            [text]="true"
-            severity="secondary"
-            (onClick)="closeDialog()"
-        ></p-button>
-        <p-button
-            [label]="isEditMode ? 'Actualizar' : 'Guardar'"
-            icon="pi pi-check"
-            (onClick)="saveUsuario()"
-        ></p-button>
+        <p-button label="Cancelar" [text]="true" severity="secondary" (onClick)="closeDialog()"></p-button>
+        <p-button label="Guardar Configuración" icon="pi pi-check" (onClick)="saveUsuario()"></p-button>
     </ng-template>
 </p-dialog>

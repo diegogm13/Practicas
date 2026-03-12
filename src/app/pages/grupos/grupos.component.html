@@ -13,6 +13,7 @@
     <p-toolbar class="grupos-toolbar">
         <ng-template pTemplate="start">
             <p-button
+                *hasPermission="'group:add'"
                 label="Nuevo Grupo"
                 icon="pi pi-plus"
                 (onClick)="openNew()"
@@ -59,6 +60,7 @@
                 <td style="text-align:center">{{ group.tickets }}</td>
                 <td style="text-align:center">
                     <p-button
+                        *hasPermission="'ticket:view'"
                         icon="pi pi-ticket"
                         [text]="true"
                         severity="success"
@@ -67,6 +69,7 @@
                         tooltipPosition="top"
                     ></p-button>
                     <p-button
+                        *hasPermission="'group:edit'"
                         icon="pi pi-pencil"
                         [text]="true"
                         severity="info"
@@ -75,6 +78,7 @@
                         tooltipPosition="top"
                     ></p-button>
                     <p-button
+                        *hasPermission="'group:delete'"
                         icon="pi pi-trash"
                         [text]="true"
                         severity="danger"

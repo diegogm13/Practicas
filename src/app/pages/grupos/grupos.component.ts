@@ -13,6 +13,8 @@ import { SelectModule } from 'primeng/select';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService, ConfirmationService } from 'primeng/api';
+import { HasPermissionDirective } from '../../directives/has-permission.directive';
+import { AuthService } from '../../services/auth.service';
 
 export interface Group {
     id: number;
@@ -40,6 +42,7 @@ export interface Group {
         SelectModule,
         ConfirmDialogModule,
         TooltipModule,
+        HasPermissionDirective,
     ],
     providers: [MessageService, ConfirmationService],
     templateUrl: './grupos.component.html',
@@ -71,6 +74,7 @@ export class GruposComponent implements OnInit {
         private messageService: MessageService,
         private confirmationService: ConfirmationService,
         private router: Router,
+        private authService: AuthService,
     ) {}
 
     verTickets(group: Group): void {
@@ -78,7 +82,7 @@ export class GruposComponent implements OnInit {
     }
 
     ngOnInit(): void {
-        this.groups = [
+        const allGroups: Group[] = [
             {
                 id: 1,
                 nombre: 'Grupo Alpha',
@@ -107,6 +111,15 @@ export class GruposComponent implements OnInit {
                 tickets: 7,
             },
         ];
+
+        // Los gestores de usuarios (SuperAdmins) ven todos los grupos; los demás solo ven los suyos
+        const currentUser = this.authService.getCurrentUser();
+        const canViewAll = this.authService.hasPermission('users:view');
+        
+        this.groups = canViewAll
+            ? allGroups
+            : allGroups.filter((g) => g.autor === currentUser);
+
         this.buildForm();
     }
 

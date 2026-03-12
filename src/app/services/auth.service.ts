@@ -10,6 +10,17 @@ export interface RegisteredUser {
     birthDate: string;
 }
 
+export type Permission =
+    | 'group:view' | 'group:edit' | 'group:add' | 'group:delete'
+    | 'ticket:view' | 'ticket:edit' | 'ticket:add' | 'ticket:delete' | 'ticket:edit_state'
+    | 'user:view' | 'users:view' | 'user:add' | 'user:edit' | 'user:delete';
+
+const ALL_PERMISSIONS: Permission[] = [
+    'group:view', 'group:edit', 'group:add', 'group:delete',
+    'ticket:view', 'ticket:edit', 'ticket:add', 'ticket:delete', 'ticket:edit_state',
+    'user:view', 'users:view', 'user:add', 'user:edit', 'user:delete',
+];
+
 @Injectable({
     providedIn: 'root',
 })
@@ -23,6 +34,13 @@ export class AuthService {
     private registeredUsers: RegisteredUser[] = [];
     private isAuthenticated = false;
     private currentUser: string = '';
+
+    /** Mapa mutable email → Lista de permisos granulares */
+    private userPermissions: Record<string, Permission[]> = {
+        'admin@miapp.com': [...ALL_PERMISSIONS],
+        'usuario@miapp.com': ['group:view', 'ticket:view', 'ticket:edit_state'],
+        'test@miapp.com': ['group:view', 'ticket:view'],
+    };
 
     login(email: string, password: string): { success: boolean; message: string } {
         const hardcodedMatch = this.HARDCODED_CREDENTIALS.find(
@@ -57,13 +75,14 @@ export class AuthService {
             return { success: false, message: 'Este correo electrónico ya está registrado.' };
         }
 
-        // Verificar si el usuario ya existe
         const userExists = this.registeredUsers.some((u) => u.usuario === user.usuario);
         if (userExists) {
             return { success: false, message: 'Este nombre de usuario ya está en uso.' };
         }
 
         this.registeredUsers.push(user);
+        // Por defecto, un nuevo usuario solo puede ver
+        this.userPermissions[user.email] = ['group:view', 'ticket:view'];
         return { success: true, message: '¡Cuenta creada exitosamente!' };
     }
 
@@ -82,5 +101,25 @@ export class AuthService {
 
     getHardcodedCredentials(): { email: string; password: string }[] {
         return [...this.HARDCODED_CREDENTIALS];
+    }
+
+    hasPermission(permission: string): boolean {
+        const perms = this.userPermissions[this.currentUser] ?? [];
+        return perms.includes(permission as Permission);
+    }
+
+    /**
+     * Gestión granular de permisos
+     */
+    getUserPermissions(email: string): Permission[] {
+        return this.userPermissions[email] ?? [];
+    }
+
+    setUserPermissions(email: string, permissions: Permission[]): void {
+        this.userPermissions[email] = [...permissions];
+    }
+    
+    getAllAvailablePermissions(): Permission[] {
+        return [...ALL_PERMISSIONS];
     }
 }
