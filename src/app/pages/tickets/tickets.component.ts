@@ -113,7 +113,8 @@ export class TicketsComponent implements OnInit {
     }
 
     loadData(): void {
-        this.tickets = this.ticketService.getTicketsByGroup(this.grupoId);
+        this.tickets = this.ticketService.getTicketsByGroup(this.grupoId)
+            .filter(t => t.asignadoA === this.currentUser);
     }
 
     buildForm(): void {

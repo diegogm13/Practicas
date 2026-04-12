@@ -154,6 +154,26 @@ export class UsuariosComponent implements OnInit {
         this.dialogVisible = false;
     }
 
+    permissionLabel(perm: Permission): string {
+        const labels: Record<Permission, string> = {
+            'group:view':        'Ver grupos',
+            'group:edit':        'Editar grupos',
+            'group:add':         'Crear grupos',
+            'group:delete':      'Eliminar grupos',
+            'ticket:view':       'Ver tickets',
+            'ticket:edit':       'Editar tickets',
+            'ticket:add':        'Crear tickets',
+            'ticket:delete':     'Eliminar tickets',
+            'ticket:edit_state': 'Cambiar estado de tickets',
+            'user:view':         'Ver perfil propio',
+            'users:view':        'Ver lista de usuarios',
+            'user:add':          'Crear usuarios',
+            'user:edit':         'Editar usuarios',
+            'user:delete':       'Eliminar usuarios',
+        };
+        return labels[perm] ?? perm;
+    }
+
     isInvalid(field: string): boolean {
         const ctrl = this.usuarioForm.get(field);
         return !!(ctrl && ctrl.invalid && ctrl.touched);

@@ -229,3 +229,92 @@
     color: #cbd5e1;
     font-size: 0.9rem;
 }
+
+/* ─── User section (groups + tickets) ───────────── */
+.user-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+}
+
+@media (max-width: 700px) {
+    .user-section { grid-template-columns: 1fr; }
+}
+
+:host ::ng-deep .user-section-card {
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1rem 1.25rem 0;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #1e293b;
+}
+
+.user-group-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0.25rem;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+
+.user-group-row:last-child { border-bottom: none; }
+.user-group-row:hover { background: #f8fafc; }
+
+.group-row-left {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.group-row-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #1e293b;
+}
+
+.group-row-arrow {
+    color: #cbd5e1;
+    font-size: 0.85rem;
+}
+
+.user-ticket-row {
+    padding: 0.6rem 0.25rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.user-ticket-row:last-child { border-bottom: none; }
+
+.ticket-row-title {
+    display: block;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: #1e293b;
+    margin-bottom: 0.35rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+}
+
+.ticket-row-tags {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.empty-msg {
+    color: #94a3b8;
+    font-size: 0.88rem;
+    text-align: center;
+    padding: 1rem 0;
+    margin: 0;
+}

@@ -108,6 +108,51 @@
             </p-card>
         </div>
     </div>
+    <!-- Mis Grupos + Mis Tickets -->
+    <div class="user-section">
+        <p-card class="user-section-card">
+            <ng-template pTemplate="header">
+                <div class="section-header">
+                    <i class="pi pi-users"></i>
+                    <span>Mis Grupos</span>
+                </div>
+            </ng-template>
+            @if (userGroups.length === 0) {
+                <p class="empty-msg">No perteneces a ningún grupo.</p>
+            }
+            @for (group of userGroups; track group.id) {
+                <div class="user-group-row" [routerLink]="['/dashboard/tickets', group.id]">
+                    <div class="group-row-left">
+                        <span class="group-row-name">{{ group.nombre }}</span>
+                        <p-tag [value]="group.categoria" severity="info"></p-tag>
+                    </div>
+                    <i class="pi pi-chevron-right group-row-arrow"></i>
+                </div>
+            }
+        </p-card>
+
+        <p-card class="user-section-card">
+            <ng-template pTemplate="header">
+                <div class="section-header">
+                    <i class="pi pi-ticket"></i>
+                    <span>Mis Tickets</span>
+                </div>
+            </ng-template>
+            @if (userTickets.length === 0) {
+                <p class="empty-msg">No tienes tickets asignados.</p>
+            }
+            @for (ticket of userTickets; track ticket.id) {
+                <div class="user-ticket-row">
+                    <span class="ticket-row-title">{{ ticket.titulo }}</span>
+                    <div class="ticket-row-tags">
+                        <p-tag [value]="ticket.estado" [severity]="ticketStateSeverity(ticket.estado)"></p-tag>
+                        <p-tag [value]="ticket.prioridad" [severity]="ticketPrioritySeverity(ticket.prioridad)"></p-tag>
+                    </div>
+                </div>
+            }
+        </p-card>
+    </div>
+
     } @else {
     <!-- Quick access cards for guests -->
     <div class="quick-access-grid">

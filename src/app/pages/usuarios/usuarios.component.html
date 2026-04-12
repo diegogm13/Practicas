@@ -4,8 +4,7 @@
 <div class="page-container">
 
     <div class="page-header">
-        <h2>Gestión de Usuarios (Permisos Granulares)</h2>
-        <p>Administra permisos específicos por usuario. Los roles han sido eliminados por seguridad.</p>
+        <h2>Gestión de Usuarios</h2>
     </div>
 
     <p-toolbar class="usuarios-toolbar">
@@ -122,7 +121,7 @@
                             [inputId]="'chk-' + perm"
                             name="perms"
                         ></p-checkbox>
-                        <label [for]="'chk-' + perm" class="ml-2">{{ perm }}</label>
+                        <label [for]="'chk-' + perm" class="ml-2">{{ permissionLabel(perm) }}</label>
                     </div>
                 }
             </div>

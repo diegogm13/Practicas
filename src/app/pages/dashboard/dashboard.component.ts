@@ -7,7 +7,7 @@ import { AvatarModule } from 'primeng/avatar';
 import { TagModule } from 'primeng/tag';
 import { ChartModule } from 'primeng/chart';
 import { AuthService } from '../../services/auth.service';
-import { TicketService } from '../../services/ticket.service';
+import { TicketService, GroupInfo, Ticket } from '../../services/ticket.service';
 
 @Component({
     selector: 'app-dashboard',
@@ -24,6 +24,8 @@ export class DashboardComponent implements OnInit {
     chartOptions: any;
 
     stats = { total: 0, pendiente: 0, enProgreso: 0, revision: 0, finalizado: 0 };
+    userGroups: GroupInfo[] = [];
+    userTickets: Ticket[] = [];
 
     constructor(
         private authService: AuthService,
@@ -34,6 +36,30 @@ export class DashboardComponent implements OnInit {
         this.isLoggedIn = this.authService.isLoggedIn();
         this.currentUser = this.authService.getCurrentUser();
         this.loadStats();
+        if (this.isLoggedIn) {
+            this.userGroups = this.ticketService.getGroupsByUser(this.currentUser);
+            this.userTickets = this.ticketService.getTicketsByUser(this.currentUser);
+        }
+    }
+
+    ticketStateSeverity(estado: string): 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast' {
+        const map: Record<string, 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast'> = {
+            'Pendiente': 'warn',
+            'En Progreso': 'info',
+            'Revisión': 'secondary',
+            'Finalizado': 'success',
+        };
+        return map[estado] ?? 'info';
+    }
+
+    ticketPrioritySeverity(prioridad: string): 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast' {
+        const map: Record<string, 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast'> = {
+            'Baja': 'secondary',
+            'Media': 'info',
+            'Alta': 'warn',
+            'Crítica': 'danger',
+        };
+        return map[prioridad] ?? 'info';
     }
 
     loadStats(): void {

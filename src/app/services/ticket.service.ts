@@ -37,10 +37,22 @@ export interface GroupMember {
     grupoId: number;
 }
 
+export interface GroupInfo {
+    id: number;
+    nombre: string;
+    categoria: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TicketService {
     private nextTicketId = 10;
     private nextMemberId = 10;
+
+    private readonly groupsInfo: GroupInfo[] = [
+        { id: 1, nombre: 'Grupo Alpha', categoria: 'Tecnología' },
+        { id: 2, nombre: 'Grupo Beta', categoria: 'Marketing' },
+        { id: 3, nombre: 'Grupo Gamma', categoria: 'Ventas' },
+    ];
 
     private tickets: Ticket[] = [
         {
@@ -158,6 +170,15 @@ export class TicketService {
 
     removeMember(id: number): void {
         this.members = this.members.filter((m) => m.id !== id);
+    }
+
+    getGroupsByUser(email: string): GroupInfo[] {
+        const grupoIds = this.members.filter((m) => m.email === email).map((m) => m.grupoId);
+        return this.groupsInfo.filter((g) => grupoIds.includes(g.id));
+    }
+
+    getTicketsByUser(email: string): Ticket[] {
+        return this.tickets.filter((t) => t.asignadoA === email || t.creador === email);
     }
 
     getStatsGlobal(): Record<EstadoTicket, number> {

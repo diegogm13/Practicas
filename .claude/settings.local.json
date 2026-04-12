@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npm install chart.js --save)",
-      "Bash(npx ng build --configuration development)"
+      "Bash(npx ng build --configuration development)",
+      "Bash(npm list:*)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"const bcrypt = require\\(''bcryptjs''\\); Promise.all\\([[''Admin@12345''],[''User@12345!''],[''Test#12345'']].map\\(\\([p]\\) => bcrypt.hash\\(p, 10\\)\\)\\).then\\(hashes => { hashes.forEach\\(\\(h,i\\) => console.log\\(i,h\\)\\); }\\)\")",
+      "Bash(bash \"/c/Users/dg660/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.6/skills/brainstorming/scripts/start-server.sh\" --project-dir \"/c/Users/dg660/Documents/Clases/pagina/erp-dgm\")"
     ]
   }
 }
