@@ -1,9 +1,10 @@
-import { Directive, Input, OnInit, TemplateRef, ViewContainerRef } from '@angular/core';
-import { AuthService } from '../services/auth.service';
+import { Directive, Input, DoCheck, TemplateRef, ViewContainerRef } from '@angular/core';
+import { PermissionService } from '../services/permission.service';
 
 /**
  * Directiva estructural que muestra el elemento solo si el usuario
- * tiene el permiso indicado.
+ * tiene el permiso indicado. Se re-evalúa en cada ciclo de detección
+ * para reflejar cambios de permisos sin recargar la página.
  *
  * Uso:
  *   <p-button *hasPermission="'group:add'" ...></p-button>
@@ -12,20 +13,24 @@ import { AuthService } from '../services/auth.service';
     selector: '[hasPermission]',
     standalone: true,
 })
-export class HasPermissionDirective implements OnInit {
+export class HasPermissionDirective implements DoCheck {
     @Input() hasPermission = '';
+    private hasView = false;
 
     constructor(
         private templateRef: TemplateRef<unknown>,
         private viewContainer: ViewContainerRef,
-        private authService: AuthService,
+        private permissionService: PermissionService,
     ) {}
 
-    ngOnInit(): void {
-        if (this.authService.hasPermission(this.hasPermission)) {
+    ngDoCheck(): void {
+        const allowed = this.permissionService.hasPermission(this.hasPermission);
+        if (allowed && !this.hasView) {
             this.viewContainer.createEmbeddedView(this.templateRef);
-        } else {
+            this.hasView = true;
+        } else if (!allowed && this.hasView) {
             this.viewContainer.clear();
+            this.hasView = false;
         }
     }
 }

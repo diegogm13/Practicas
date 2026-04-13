@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -53,10 +53,13 @@ import { HasPermissionDirective } from '../../directives/has-permission.directiv
 export class TicketsComponent implements OnInit {
     grupoId = 0;
     grupoNombre = '';
+    /** Email del usuario actual (para mostrar en UI) */
     currentUser = '';
+    /** UUID del usuario actual (para comparar con datos del backend) */
+    currentUserId = '';
 
     tickets: Ticket[] = [];
-    
+
     // View toggle
     viewOptions = [
         { label: 'Kanban', value: 'kanban', icon: 'pi pi-th-large' },
@@ -88,8 +91,8 @@ export class TicketsComponent implements OnInit {
     ticketForm!: FormGroup;
     newComment = '';
 
-    // Quick filters
-    quickFilter: 'todos' | 'mis-tickets' | 'sin-asignar' | 'prioridad-alta' = 'todos';
+    // Quick filters — admin ve todos; usuario normal solo los suyos
+    quickFilter: 'todos' | 'mis-tickets' | 'sin-asignar' | 'prioridad-alta' = 'mis-tickets';
 
     // Drag and drop tracking
     draggedTicket: Ticket | null = null;
@@ -100,21 +103,31 @@ export class TicketsComponent implements OnInit {
         private authService: AuthService,
         private fb: FormBuilder,
         private messageService: MessageService,
+        private cdr: ChangeDetectorRef,
     ) {}
 
     ngOnInit(): void {
         this.grupoId = Number(this.route.snapshot.paramMap.get('grupoId') ?? 1);
         this.currentUser = this.authService.getCurrentUser();
+        this.currentUserId = this.authService.getCurrentUserId();
+        // Admin ve todos; usuario normal solo sus tickets
+        this.quickFilter = this.authService.hasPermission('users:view') ? 'todos' : 'mis-tickets';
         this.loadData();
         this.buildForm();
 
-        const grupoNames: Record<number, string> = { 1: 'Grupo Alpha', 2: 'Grupo Beta', 3: 'Grupo Gamma' };
-        this.grupoNombre = grupoNames[this.grupoId] ?? `Grupo ${this.grupoId}`;
+        // Nombre del grupo se obtendrá del backend en loadData; fallback mientras tanto
+        this.grupoNombre = `Grupo ${this.grupoId}`;
+        this.ticketService.getGroups().subscribe((groups) => {
+            const g = groups.find((x) => x.id === this.grupoId);
+            if (g) this.grupoNombre = g.nombre;
+        });
     }
 
     loadData(): void {
-        this.tickets = this.ticketService.getTicketsByGroup(this.grupoId)
-            .filter(t => t.asignadoA === this.currentUser);
+        this.ticketService.getTicketsByGroup(this.grupoId).subscribe((tickets) => {
+            this.tickets = tickets;
+            this.cdr.detectChanges();
+        });
     }
 
     buildForm(): void {
@@ -123,19 +136,22 @@ export class TicketsComponent implements OnInit {
             descripcion: ['', Validators.required],
             estado: ['Pendiente', Validators.required],
             prioridad: ['Media', Validators.required],
-            asignadoA: ['', [Validators.required, Validators.email]],
             fechaLimite: [null, Validators.required],
         });
     }
 
     canEditAllFields(ticket: Ticket | null): boolean {
-        if (!ticket) return true; // Creador por defecto para nuevos
-        return ticket.creador === this.currentUser || this.authService.hasPermission('ticket:delete');
+        if (!ticket) return true;
+        return ticket.creador === this.currentUserId || this.authService.hasPermission('ticket:delete');
     }
 
     canChangeStatus(ticket: Ticket | null): boolean {
         if (!ticket) return true;
-        return ticket.asignadoA === this.currentUser || ticket.creador === this.currentUser || this.authService.hasPermission('ticket:edit_state');
+        return (
+            ticket.asignadoA === this.currentUserId ||
+            ticket.creador === this.currentUserId ||
+            this.authService.hasPermission('ticket:edit_state')
+        );
     }
 
     ticketsByEstado(estado: EstadoTicket): Ticket[] {
@@ -144,8 +160,8 @@ export class TicketsComponent implements OnInit {
 
     get filteredTickets(): Ticket[] {
         return this.tickets.filter((t) => {
-            if (this.quickFilter === 'mis-tickets') return t.asignadoA === this.currentUser;
-            if (this.quickFilter === 'sin-asignar') return !t.asignadoA || t.asignadoA === '';
+            if (this.quickFilter === 'mis-tickets') return t.asignadoA === this.currentUserId;
+            if (this.quickFilter === 'sin-asignar') return !t.asignadoA;
             if (this.quickFilter === 'prioridad-alta') return t.prioridad === 'Alta' || t.prioridad === 'Crítica';
             return true;
         });
@@ -159,6 +175,10 @@ export class TicketsComponent implements OnInit {
         this.isEditMode = false;
         this.selectedTicket = null;
         this.ticketForm.reset({ estado: 'Pendiente', prioridad: 'Media' });
+        this.ticketForm.get('titulo')?.enable();
+        this.ticketForm.get('descripcion')?.enable();
+        this.ticketForm.get('prioridad')?.enable();
+        this.ticketForm.get('estado')?.enable();
         this.ticketDialogVisible = true;
     }
 
@@ -170,21 +190,17 @@ export class TicketsComponent implements OnInit {
             descripcion: ticket.descripcion,
             estado: ticket.estado,
             prioridad: ticket.prioridad,
-            asignadoA: ticket.asignadoA,
             fechaLimite: new Date(ticket.fechaLimite),
         });
 
-        // Aplicar restricciones
         if (!this.canEditAllFields(ticket)) {
             this.ticketForm.get('titulo')?.disable();
             this.ticketForm.get('descripcion')?.disable();
             this.ticketForm.get('prioridad')?.disable();
-            this.ticketForm.get('asignadoA')?.disable();
         } else {
             this.ticketForm.get('titulo')?.enable();
             this.ticketForm.get('descripcion')?.enable();
             this.ticketForm.get('prioridad')?.enable();
-            this.ticketForm.get('asignadoA')?.enable();
         }
 
         if (!this.canChangeStatus(ticket)) {
@@ -197,7 +213,7 @@ export class TicketsComponent implements OnInit {
     }
 
     openDetail(ticket: Ticket): void {
-        this.selectedTicket = this.ticketService.getTicketById(ticket.id) ?? ticket;
+        this.selectedTicket = { ...ticket };
         this.newComment = '';
         this.detailDialogVisible = true;
     }
@@ -208,37 +224,78 @@ export class TicketsComponent implements OnInit {
         const v = this.ticketForm.getRawValue();
 
         if (this.isEditMode && this.selectedTicket) {
-            this.ticketService.updateTicket(this.selectedTicket.id, v, this.currentUser);
-            this.messageService.add({ severity: 'success', summary: 'Sincronizado', detail: 'Ticket actualizado.' });
-        } else {
-            this.ticketService.createTicket({
-                ...v,
-                creador: this.currentUser,
-                fechaCreacion: new Date(),
-                grupoId: this.grupoId,
+            const changes: Partial<Ticket> = {
+                titulo: v.titulo,
+                descripcion: v.descripcion,
+                prioridad: v.prioridad,
+                estado: v.estado,
+                fechaLimite: v.fechaLimite,
+            };
+            this.ticketService.updateTicket(this.selectedTicket.id, changes).subscribe({
+                next: () => {
+                    this.messageService.add({ severity: 'success', summary: 'Sincronizado', detail: 'Ticket actualizado.' });
+                    this.loadData();
+                    this.ticketDialogVisible = false;
+                },
+                error: () => {
+                    this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo actualizar el ticket.' });
+                },
             });
-            this.messageService.add({ severity: 'success', summary: 'Creado', detail: 'Nuevo ticket generado.' });
-        }
+        } else {
+            const fechaLimiteStr = v.fechaLimite
+                ? (v.fechaLimite instanceof Date ? v.fechaLimite : new Date(v.fechaLimite)).toISOString().split('T')[0]
+                : '';
 
-        this.loadData();
-        this.ticketDialogVisible = false;
+            this.ticketService.createTicket({
+                titulo: v.titulo,
+                descripcion: v.descripcion,
+                prioridad: v.prioridad,
+                fecha_limite: fechaLimiteStr,
+                grupo_id: this.grupoId,
+            }).subscribe({
+                next: () => {
+                    this.messageService.add({ severity: 'success', summary: 'Creado', detail: 'Nuevo ticket generado.' });
+                    this.loadData();
+                    this.ticketDialogVisible = false;
+                },
+                error: () => {
+                    this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo crear el ticket.' });
+                },
+            });
+        }
     }
 
     deleteTicket(ticket: Ticket): void {
-        if (ticket.creador !== this.currentUser && !this.authService.hasPermission('ticket:delete')) {
+        if (ticket.creador !== this.currentUserId && !this.authService.hasPermission('ticket:delete')) {
             this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Solo el creador puede eliminarlo.' });
             return;
         }
-        this.ticketService.deleteTicket(ticket.id);
-        this.loadData();
-        this.messageService.add({ severity: 'info', summary: 'Eliminado', detail: 'El ticket ha sido removido.' });
+        this.ticketService.deleteTicket(ticket.id).subscribe({
+            next: () => {
+                this.loadData();
+                this.messageService.add({ severity: 'info', summary: 'Eliminado', detail: 'El ticket ha sido removido.' });
+            },
+            error: () => {
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo eliminar el ticket.' });
+            },
+        });
     }
 
     addComment(): void {
         if (!this.newComment.trim() || !this.selectedTicket) return;
-        this.ticketService.addComment(this.selectedTicket.id, this.newComment.trim(), this.currentUser);
-        this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id) ?? this.selectedTicket;
-        this.newComment = '';
+        const texto = this.newComment.trim();
+        this.ticketService.addComment(this.selectedTicket.id, texto).subscribe({
+            next: () => {
+                this.selectedTicket!.comentarios = [
+                    ...this.selectedTicket!.comentarios,
+                    { autor: this.currentUser, texto, fecha: new Date() },
+                ];
+                this.newComment = '';
+            },
+            error: () => {
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo añadir el comentario.' });
+            },
+        });
     }
 
     // Drag and Drop Logic
@@ -254,9 +311,15 @@ export class TicketsComponent implements OnInit {
 
     onDrop(newEstado: EstadoTicket): void {
         if (this.draggedTicket && this.draggedTicket.estado !== newEstado) {
-            this.ticketService.updateTicket(this.draggedTicket.id, { estado: newEstado }, this.currentUser);
-            this.messageService.add({ severity: 'success', summary: 'Movido', detail: `Ticket a ${newEstado}` });
-            this.loadData();
+            this.ticketService.changeEstado(this.draggedTicket.id, newEstado).subscribe({
+                next: () => {
+                    this.messageService.add({ severity: 'success', summary: 'Movido', detail: `Ticket a ${newEstado}` });
+                    this.loadData();
+                },
+                error: () => {
+                    this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo cambiar el estado.' });
+                },
+            });
         }
     }
 

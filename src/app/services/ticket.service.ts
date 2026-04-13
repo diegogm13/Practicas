@@ -1,4 +1,8 @@
 import { Injectable } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Observable, of, forkJoin } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
+import { AuthService } from './auth.service';
 
 export interface Comentario {
     autor: string;
@@ -20,7 +24,9 @@ export interface Ticket {
     titulo: string;
     descripcion: string;
     estado: EstadoTicket;
+    /** UUID del usuario asignado (del backend) */
     asignadoA: string;
+    /** UUID del creador (del backend) */
     creador: string;
     prioridad: PrioridadTicket;
     fechaCreacion: Date;
@@ -41,167 +47,208 @@ export interface GroupInfo {
     id: number;
     nombre: string;
     categoria: string;
+    nivel: string;
+    autorId: string;
 }
+
+const API = 'http://localhost:3000';
+
+const ESTADO_IDS: Record<EstadoTicket, number> = {
+    'Pendiente': 1,
+    'En Progreso': 2,
+    'Revisión': 3,
+    'Finalizado': 4,
+};
 
 @Injectable({ providedIn: 'root' })
 export class TicketService {
-    private nextTicketId = 10;
-    private nextMemberId = 10;
+    constructor(
+        private http: HttpClient,
+        private authService: AuthService,
+    ) {}
 
-    private readonly groupsInfo: GroupInfo[] = [
-        { id: 1, nombre: 'Grupo Alpha', categoria: 'Tecnología' },
-        { id: 2, nombre: 'Grupo Beta', categoria: 'Marketing' },
-        { id: 3, nombre: 'Grupo Gamma', categoria: 'Ventas' },
-    ];
-
-    private tickets: Ticket[] = [
-        {
-            id: 1, grupoId: 1,
-            titulo: 'Configurar entorno de staging',
-            descripcion: 'Levantar entorno de staging con Docker Compose para pruebas de integración.',
-            estado: 'En Progreso', prioridad: 'Alta',
-            asignadoA: 'admin@miapp.com', creador: 'admin@miapp.com',
-            fechaCreacion: new Date('2026-02-10'), fechaLimite: new Date('2026-03-15'),
-            comentarios: [{ autor: 'admin@miapp.com', texto: 'Iniciando configuración de Docker.', fecha: new Date('2026-02-11') }],
-            historial: [{ cambio: 'Estado cambiado a En Progreso', fecha: new Date('2026-02-12'), autor: 'admin@miapp.com' }],
-        },
-        {
-            id: 2, grupoId: 1,
-            titulo: 'Revisar vulnerabilidades de seguridad',
-            descripcion: 'Ejecutar OWASP ZAP y corregir hallazgos críticos.',
-            estado: 'Pendiente', prioridad: 'Crítica',
-            asignadoA: 'usuario@miapp.com', creador: 'admin@miapp.com',
-            fechaCreacion: new Date('2026-02-15'), fechaLimite: new Date('2026-03-10'),
-            comentarios: [], historial: [],
-        },
-        {
-            id: 3, grupoId: 1,
-            titulo: 'Optimizar consultas SQL del módulo de reportes',
-            descripcion: 'Varias consultas superan los 3 segundos en producción.',
-            estado: 'Revisión', prioridad: 'Media',
-            asignadoA: 'test@miapp.com', creador: 'usuario@miapp.com',
-            fechaCreacion: new Date('2026-02-18'), fechaLimite: new Date('2026-03-20'),
-            comentarios: [], historial: [],
-        },
-        {
-            id: 4, grupoId: 1,
-            titulo: 'Actualizar dependencias de Node.js',
-            descripcion: 'Migrar a Node 22 LTS y actualizar paquetes desactualizados.',
-            estado: 'Finalizado', prioridad: 'Baja',
-            asignadoA: 'admin@miapp.com', creador: 'test@miapp.com',
-            fechaCreacion: new Date('2026-01-20'), fechaLimite: new Date('2026-02-28'),
-            comentarios: [], historial: [],
-        },
-    ];
-
-    private members: GroupMember[] = [
-        { id: 1, grupoId: 1, email: 'admin@miapp.com', nombre: 'Admin Principal' },
-        { id: 2, grupoId: 1, email: 'usuario@miapp.com', nombre: 'Usuario Estándar' },
-        { id: 3, grupoId: 1, email: 'test@miapp.com', nombre: 'Test User' },
-        { id: 4, grupoId: 2, email: 'usuario@miapp.com', nombre: 'Usuario Estándar' },
-        { id: 5, grupoId: 2, email: 'test@miapp.com', nombre: 'Test User' },
-        { id: 6, grupoId: 3, email: 'test@miapp.com', nombre: 'Test User' },
-        { id: 7, grupoId: 3, email: 'admin@miapp.com', nombre: 'Admin Principal' },
-        { id: 8, grupoId: 3, email: 'usuario@miapp.com', nombre: 'Usuario Estándar' },
-    ];
-
-    getTicketsByGroup(grupoId: number): Ticket[] {
-        return this.tickets.filter((t) => t.grupoId === grupoId);
+    private options() {
+        const token = this.authService.getToken();
+        return { headers: new HttpHeaders({ Authorization: `Bearer ${token ?? ''}` }) };
     }
 
-    getAllTickets(): Ticket[] {
-        return [...this.tickets];
-    }
-
-    getTicketById(id: number): Ticket | undefined {
-        return this.tickets.find((t) => t.id === id);
-    }
-
-    createTicket(ticket: Omit<Ticket, 'id' | 'comentarios' | 'historial'>): Ticket {
-        const newTicket: Ticket = {
-            ...ticket,
-            id: this.nextTicketId++,
-            comentarios: [],
-            historial: [{ cambio: 'Ticket creado', fecha: new Date(), autor: ticket.creador }],
-        };
-        this.tickets = [...this.tickets, newTicket];
-        return newTicket;
-    }
-
-    updateTicket(id: number, changes: Partial<Ticket>, autor: string): void {
-        const idx = this.tickets.findIndex((t) => t.id === id);
-        if (idx === -1) return;
-        const prev = this.tickets[idx];
-        const historialEntry: HistorialEntry = {
-            cambio: this.buildChangeLog(prev, changes),
-            fecha: new Date(),
-            autor,
-        };
-        this.tickets[idx] = {
-            ...prev,
-            ...changes,
-            historial: [...prev.historial, historialEntry],
-        };
-        this.tickets = [...this.tickets];
-    }
-
-    deleteTicket(id: number): void {
-        this.tickets = this.tickets.filter((t) => t.id !== id);
-    }
-
-    addComment(ticketId: number, texto: string, autor: string): void {
-        const ticket = this.tickets.find((t) => t.id === ticketId);
-        if (!ticket) return;
-        ticket.comentarios = [...ticket.comentarios, { autor, texto, fecha: new Date() }];
-        ticket.historial = [...ticket.historial, { cambio: 'Comentario añadido', fecha: new Date(), autor }];
-        this.tickets = [...this.tickets];
-    }
-
-    getMembersByGroup(grupoId: number): GroupMember[] {
-        return this.members.filter((m) => m.grupoId === grupoId);
-    }
-
-    addMember(grupoId: number, email: string, nombre: string): { success: boolean; message: string } {
-        const exists = this.members.some((m) => m.grupoId === grupoId && m.email === email);
-        if (exists) return { success: false, message: 'El usuario ya es miembro del grupo.' };
-        this.members = [...this.members, { id: this.nextMemberId++, grupoId, email, nombre }];
-        return { success: true, message: 'Miembro añadido correctamente.' };
-    }
-
-    removeMember(id: number): void {
-        this.members = this.members.filter((m) => m.id !== id);
-    }
-
-    getGroupsByUser(email: string): GroupInfo[] {
-        const grupoIds = this.members.filter((m) => m.email === email).map((m) => m.grupoId);
-        return this.groupsInfo.filter((g) => grupoIds.includes(g.id));
-    }
-
-    getTicketsByUser(email: string): Ticket[] {
-        return this.tickets.filter((t) => t.asignadoA === email || t.creador === email);
-    }
-
-    getStatsGlobal(): Record<EstadoTicket, number> {
+    private adaptTicket(t: any): Ticket {
         return {
-            'Pendiente': this.tickets.filter((t) => t.estado === 'Pendiente').length,
-            'En Progreso': this.tickets.filter((t) => t.estado === 'En Progreso').length,
-            'Revisión': this.tickets.filter((t) => t.estado === 'Revisión').length,
-            'Finalizado': this.tickets.filter((t) => t.estado === 'Finalizado').length,
+            id: t.id,
+            titulo: t.titulo,
+            descripcion: t.descripcion ?? '',
+            estado: (t.ticket_estados?.nombre ?? 'Pendiente') as EstadoTicket,
+            prioridad: (t.prioridad ?? 'Media') as PrioridadTicket,
+            asignadoA: t.asignado_a ?? '',
+            creador: t.creador_id ?? '',
+            fechaCreacion: new Date(t.fecha_creacion),
+            fechaLimite: new Date(t.fecha_limite),
+            grupoId: t.grupo_id,
+            comentarios: [],
+            historial: [],
         };
     }
 
-    private buildChangeLog(prev: Ticket, changes: Partial<Ticket>): string {
-        const parts: string[] = [];
-        if (changes.estado && changes.estado !== prev.estado)
-            parts.push(`Estado: "${prev.estado}" → "${changes.estado}"`);
-        if (changes.prioridad && changes.prioridad !== prev.prioridad)
-            parts.push(`Prioridad: "${prev.prioridad}" → "${changes.prioridad}"`);
-        if (changes.asignadoA && changes.asignadoA !== prev.asignadoA)
-            parts.push(`Asignado: "${prev.asignadoA}" → "${changes.asignadoA}"`);
-        if (changes.titulo && changes.titulo !== prev.titulo)
-            parts.push(`Título actualizado`);
-        if (changes.descripcion && changes.descripcion !== prev.descripcion)
-            parts.push(`Descripción actualizada`);
-        return parts.length ? parts.join('; ') : 'Ticket actualizado';
+    private toDateStr(d: Date | string | null | undefined): string {
+        if (!d) return '';
+        const date = d instanceof Date ? d : new Date(d);
+        return date.toISOString().split('T')[0];
+    }
+
+    // ── Tickets ──────────────────────────────────────────────────────────────
+
+    getTicketsByGroup(grupoId: number): Observable<Ticket[]> {
+        return this.http
+            .get<{ statusCode: number; intOpCode: string; data: any[] }>(`${API}/tickets?grupoId=${grupoId}`, this.options())
+            .pipe(
+                map((res) => (res.data ?? []).map((t) => this.adaptTicket(t))),
+                catchError(() => of([]))
+            );
+    }
+
+    getAllTickets(): Observable<Ticket[]> {
+        return this.http
+            .get<{ statusCode: number; intOpCode: string; data: any[] }>(`${API}/tickets`, this.options())
+            .pipe(
+                map((res) => (res.data ?? []).map((t) => this.adaptTicket(t))),
+                catchError(() => of([]))
+            );
+    }
+
+    createTicket(payload: {
+        titulo: string;
+        descripcion: string;
+        prioridad?: string;
+        fecha_limite: string;
+        grupo_id: number;
+    }): Observable<Ticket> {
+        return this.http
+            .post<{ statusCode: number; intOpCode: string; data: any }>(`${API}/tickets`, payload, this.options())
+            .pipe(map((res) => this.adaptTicket(res.data)));
+    }
+
+    updateTicket(id: number, changes: Partial<Ticket>): Observable<void> {
+        const ops: Observable<any>[] = [];
+
+        const putBody: any = {};
+        if (changes.titulo !== undefined) putBody.titulo = changes.titulo;
+        if (changes.descripcion !== undefined) putBody.descripcion = changes.descripcion;
+        if (changes.prioridad !== undefined) putBody.prioridad = changes.prioridad;
+        if (changes.fechaLimite !== undefined) putBody.fecha_limite = this.toDateStr(changes.fechaLimite);
+
+        if (Object.keys(putBody).length > 0) {
+            ops.push(this.http.put(`${API}/tickets/${id}`, putBody, this.options()));
+        }
+
+        if (changes.estado !== undefined) {
+            const estado_id = ESTADO_IDS[changes.estado] ?? 1;
+            ops.push(this.http.patch(`${API}/tickets/${id}/estado`, { estado_id }, this.options()));
+        }
+
+        if (ops.length === 0) return of(undefined);
+        return forkJoin(ops).pipe(map(() => undefined));
+    }
+
+    changeEstado(id: number, estado: EstadoTicket): Observable<void> {
+        const estado_id = ESTADO_IDS[estado] ?? 1;
+        return this.http
+            .patch(`${API}/tickets/${id}/estado`, { estado_id }, this.options())
+            .pipe(map(() => undefined));
+    }
+
+    deleteTicket(id: number): Observable<void> {
+        return this.http
+            .delete(`${API}/tickets/${id}`, this.options())
+            .pipe(map(() => undefined));
+    }
+
+    addComment(ticketId: number, texto: string): Observable<any> {
+        return this.http.post(
+            `${API}/tickets/${ticketId}/comments`,
+            { texto },
+            this.options()
+        );
+    }
+
+    // ── Groups ───────────────────────────────────────────────────────────────
+
+    getGroups(): Observable<GroupInfo[]> {
+        return this.http
+            .get<{ statusCode: number; intOpCode: string; data: any[] }>(`${API}/groups`, this.options())
+            .pipe(
+                map((res) =>
+                    (res.data ?? []).map((g) => ({
+                        id: g.id,
+                        nombre: g.nombre,
+                        categoria: g.categoria,
+                        nivel: g.nivel ?? '',
+                        autorId: g.autor_id ?? '',
+                    }))
+                ),
+                catchError(() => of([]))
+            );
+    }
+
+    createGroup(payload: { nombre: string; categoria: string; nivel: string }): Observable<GroupInfo> {
+        return this.http
+            .post<{ statusCode: number; intOpCode: string; data: any }>(`${API}/groups`, payload, this.options())
+            .pipe(
+                map((res) => ({
+                    id: res.data.id,
+                    nombre: res.data.nombre,
+                    categoria: res.data.categoria,
+                    nivel: res.data.nivel ?? '',
+                    autorId: res.data.autor_id ?? '',
+                }))
+            );
+    }
+
+    updateGroup(id: number, payload: { nombre: string; categoria: string; nivel: string }): Observable<GroupInfo> {
+        return this.http
+            .put<{ statusCode: number; intOpCode: string; data: any }>(`${API}/groups/${id}`, payload, this.options())
+            .pipe(
+                map((res) => ({
+                    id: res.data.id,
+                    nombre: res.data.nombre,
+                    categoria: res.data.categoria,
+                    nivel: res.data.nivel ?? '',
+                    autorId: res.data.autor_id ?? '',
+                }))
+            );
+    }
+
+    deleteGroup(id: number): Observable<void> {
+        return this.http
+            .delete(`${API}/groups/${id}`, this.options())
+            .pipe(map(() => undefined));
+    }
+
+    getMembersByGroup(grupoId: number): Observable<GroupMember[]> {
+        return this.http
+            .get<{ statusCode: number; intOpCode: string; data: any[] }>(`${API}/groups/${grupoId}/members`, this.options())
+            .pipe(
+                map((res) =>
+                    (res.data ?? []).map((m) => ({
+                        id: m.id,
+                        grupoId,
+                        email: m.usuarios?.email ?? '',
+                        nombre: m.usuarios?.full_name ?? m.usuarios?.email ?? '',
+                    }))
+                ),
+                catchError(() => of([]))
+            );
+    }
+
+    // ── Stats (computed client-side from all tickets) ─────────────────────────
+
+    getStatsGlobal(): Observable<Record<EstadoTicket, number>> {
+        return this.getAllTickets().pipe(
+            map((tickets) => ({
+                'Pendiente': tickets.filter((t) => t.estado === 'Pendiente').length,
+                'En Progreso': tickets.filter((t) => t.estado === 'En Progreso').length,
+                'Revisión': tickets.filter((t) => t.estado === 'Revisión').length,
+                'Finalizado': tickets.filter((t) => t.estado === 'Finalizado').length,
+            }))
+        );
     }
 }

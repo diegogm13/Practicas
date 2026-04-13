@@ -7,7 +7,7 @@
 -- 1. USUARIOS
 -- -------------------------
 CREATE TABLE IF NOT EXISTS usuarios (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     usuario       VARCHAR(50)  NOT NULL UNIQUE,
     email         VARCHAR(150) NOT NULL UNIQUE,
     password_hash TEXT         NOT NULL,
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     address       TEXT,
     phone         VARCHAR(20),
     birth_date    DATE,
+    activo        BOOLEAN      NOT NULL DEFAULT true,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
@@ -59,14 +60,22 @@ CREATE TABLE IF NOT EXISTS grupo_miembros (
 );
 
 -- -------------------------
--- 6. TICKETS
+-- 6. TICKET_ESTADOS (catálogo)
+-- -------------------------
+CREATE TABLE IF NOT EXISTS ticket_estados (
+    id     SERIAL      PRIMARY KEY,
+    nombre VARCHAR(30) NOT NULL UNIQUE
+);
+
+-- -------------------------
+-- 7. TICKETS
 -- -------------------------
 CREATE TABLE IF NOT EXISTS tickets (
     id             SERIAL       PRIMARY KEY,
     titulo         VARCHAR(200) NOT NULL,
     descripcion    TEXT         NOT NULL,
-    estado         VARCHAR(20)  NOT NULL DEFAULT 'Pendiente',  -- Pendiente | En Progreso | Revisión | Finalizado
-    prioridad      VARCHAR(10)  NOT NULL DEFAULT 'Media',       -- Baja | Media | Alta | Crítica
+    estado_id      INTEGER      NOT NULL REFERENCES ticket_estados(id) DEFAULT 1,
+    prioridad      VARCHAR(10)  NOT NULL DEFAULT 'Media',  -- Baja | Media | Alta | Crítica
     asignado_a     UUID         REFERENCES usuarios(id),
     creador_id     UUID         NOT NULL REFERENCES usuarios(id),
     fecha_creacion TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -75,7 +84,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 
 -- -------------------------
--- 7. TICKET_COMENTARIOS
+-- 8. TICKET_COMENTARIOS
 -- -------------------------
 CREATE TABLE IF NOT EXISTS ticket_comentarios (
     id        SERIAL      PRIMARY KEY,
@@ -86,7 +95,7 @@ CREATE TABLE IF NOT EXISTS ticket_comentarios (
 );
 
 -- -------------------------
--- 8. TICKET_HISTORIAL
+-- 9. TICKET_HISTORIAL
 -- -------------------------
 CREATE TABLE IF NOT EXISTS ticket_historial (
     id        SERIAL      PRIMARY KEY,

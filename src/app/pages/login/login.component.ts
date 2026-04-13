@@ -77,8 +77,7 @@ export class LoginComponent {
 
     this.loading = true;
 
-    setTimeout(() => {
-      const result = this.authService.login(this.email, this.password);
+    this.authService.login(this.email, this.password).subscribe((result) => {
       this.loading = false;
 
       if (result.success) {
@@ -97,7 +96,7 @@ export class LoginComponent {
           detail: result.message,
         });
       }
-    }, 1000);
+    });
   }
 
   goToRegister(): void {

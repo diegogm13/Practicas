@@ -1,5 +1,12 @@
 <div class="home-container">
 
+    @if (loading && isLoggedIn) {
+    <div class="dashboard-loading">
+        <p-progressspinner strokeWidth="4" animationDuration=".8s"></p-progressspinner>
+        <p>Cargando datos...</p>
+    </div>
+    }
+
     <!-- Welcome banner -->
     @if (isLoggedIn) {
     <div class="welcome-banner">
@@ -19,8 +26,8 @@
     </div>
     }
 
-    <!-- Stats cards (only when logged in) -->
-    @if (isLoggedIn) {
+    <!-- Stats cards (only when logged in and data ready) -->
+    @if (isLoggedIn && !loading) {
     <div class="stats-grid">
         <div class="stat-card stat-total">
             <div class="stat-icon"><i class="pi pi-ticket"></i></div>

@@ -247,17 +247,15 @@ export class RegisterComponent {
 
     this.loading = true;
 
-    setTimeout(() => {
-      const result = this.authService.register({
-        usuario: this.usuario.trim(),
-        email: this.email.trim(),
-        password: this.password,
-        fullName: this.fullName.trim(),
-        address: this.address.trim(),
-        phone: this.phone.trim(),
-        birthDate: this.birthDate!.toISOString(),
-      });
-
+    this.authService.register({
+      usuario: this.usuario.trim(),
+      email: this.email.trim(),
+      password: this.password,
+      fullName: this.fullName.trim(),
+      address: this.address.trim(),
+      phone: this.phone.trim(),
+      birthDate: this.birthDate!.toISOString(),
+    }).subscribe((result) => {
       this.loading = false;
 
       if (result.success) {
@@ -276,7 +274,7 @@ export class RegisterComponent {
           detail: result.message,
         });
       }
-    }, 1500);
+    });
   }
 
   goToLogin(): void {

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -47,7 +47,8 @@ export class PerfilComponent implements OnInit {
         private ticketService: TicketService,
         private messageService: MessageService,
         private confirmationService: ConfirmationService,
-        private router: Router
+        private router: Router,
+        private cdr: ChangeDetectorRef,
     ) {}
 
     ngOnInit(): void {
@@ -57,14 +58,15 @@ export class PerfilComponent implements OnInit {
     }
 
     loadWorkload(): void {
-        // Obtenemos todos los tickets simulando una carga global
-        const allTickets = this.ticketService.getAllTickets();
-        this.userTickets = allTickets.filter(t => t.asignadoA === this.currentUser);
+        const currentUserId = this.authService.getCurrentUserId();
+        this.ticketService.getAllTickets().subscribe((tickets) => {
+            this.userTickets = tickets.filter((t) => t.asignadoA === currentUserId || t.creador === currentUserId);
+            this.cdr.detectChanges();
+        });
     }
 
     get pendingTicketsCount(): number {
-        // En TicketService, los estados son 'Abierto', 'En Progreso', 'En Revisión', 'Cerrado'
-        return this.userTickets.filter(t => t.estado !== 'Cerrado' as any).length;
+        return this.userTickets.filter((t) => t.estado !== 'Finalizado').length;
     }
 
     startEdit(): void {

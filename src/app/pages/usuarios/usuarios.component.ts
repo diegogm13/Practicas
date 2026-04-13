@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+'use strict';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -10,17 +11,11 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { CheckboxModule } from 'primeng/checkbox';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { TagModule } from 'primeng/tag';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { HasPermissionDirective } from '../../directives/has-permission.directive';
-import { AuthService, Permission } from '../../services/auth.service';
-
-export interface Usuario {
-    id: number;
-    nombre: string;
-    apellido: string;
-    correo: string;
-    activo: boolean;
-}
+import { AuthService, BackendUser, Permission } from '../../services/auth.service';
 
 @Component({
     selector: 'app-usuarios',
@@ -38,6 +33,8 @@ export interface Usuario {
         ToggleSwitchModule,
         ConfirmDialogModule,
         CheckboxModule,
+        ProgressSpinnerModule,
+        TagModule,
         HasPermissionDirective,
     ],
     providers: [MessageService, ConfirmationService],
@@ -45,61 +42,78 @@ export interface Usuario {
     styleUrl: './usuarios.component.css',
 })
 export class UsuariosComponent implements OnInit {
-    usuarios: Usuario[] = [];
+    usuarios: BackendUser[] = [];
     usuarioForm!: FormGroup;
     dialogVisible = false;
     isEditMode = false;
-    editingId: number | null = null;
-    private nextId = 5;
+    editingUser: BackendUser | null = null;
+    loading = true;
 
     allPermissions: Permission[] = [];
     selectedPermissions: Permission[] = [];
+    loadingPermissions = false;
 
     constructor(
         private fb: FormBuilder,
         private messageService: MessageService,
         private confirmationService: ConfirmationService,
         private authService: AuthService,
+        private cdr: ChangeDetectorRef,
     ) {}
 
     ngOnInit(): void {
         this.allPermissions = this.authService.getAllAvailablePermissions();
-        this.usuarios = [
-            { id: 1, nombre: 'Carlos', apellido: 'Ramírez', correo: 'admin@miapp.com', activo: true },
-            { id: 2, nombre: 'Laura', apellido: 'Mendoza', correo: 'usuario@miapp.com', activo: true },
-            { id: 3, nombre: 'Pedro', apellido: 'Soto', correo: 'test@miapp.com', activo: false },
-        ];
         this.buildForm();
+        this.loadUsuarios();
+    }
+
+    loadUsuarios(): void {
+        this.loading = true;
+        this.authService.getUsers().subscribe({
+            next: (users) => {
+                this.usuarios = users;
+                this.loading = false;
+                this.cdr.detectChanges();
+            },
+            error: () => {
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudieron cargar los usuarios.' });
+                this.loading = false;
+                this.cdr.detectChanges();
+            },
+        });
     }
 
     buildForm(): void {
         this.usuarioForm = this.fb.group({
-            nombre: ['', [Validators.required, Validators.minLength(2)]],
-            apellido: ['', [Validators.required, Validators.minLength(2)]],
-            correo: ['', [Validators.required, Validators.email]],
+            fullName: ['', [Validators.required, Validators.minLength(2)]],
             activo: [true],
         });
     }
 
     openNew(): void {
         this.isEditMode = false;
-        this.editingId = null;
+        this.editingUser = null;
         this.selectedPermissions = [];
         this.usuarioForm.reset({ activo: true });
         this.dialogVisible = true;
     }
 
-    editUsuario(usuario: Usuario): void {
+    editUsuario(usuario: BackendUser): void {
         this.isEditMode = true;
-        this.editingId = usuario.id;
-        this.selectedPermissions = this.authService.getUserPermissions(usuario.correo);
-        this.usuarioForm.patchValue({
-            nombre: usuario.nombre,
-            apellido: usuario.apellido,
-            correo: usuario.correo,
-            activo: usuario.activo,
-        });
+        this.editingUser = usuario;
+        this.selectedPermissions = [];
+        this.loadingPermissions = true;
+        this.usuarioForm.patchValue({ fullName: usuario.fullName, activo: usuario.activo });
         this.dialogVisible = true;
+
+        this.authService.getUserPermissionsFromBackend(usuario.id).subscribe({
+            next: (perms) => {
+                this.selectedPermissions = perms;
+                this.loadingPermissions = false;
+                this.cdr.detectChanges();
+            },
+            error: () => { this.loadingPermissions = false; this.cdr.detectChanges(); },
+        });
     }
 
     saveUsuario(): void {
@@ -108,50 +122,53 @@ export class UsuariosComponent implements OnInit {
             return;
         }
 
-        const formValue = this.usuarioForm.value;
-        const email = formValue.correo;
+        if (!this.editingUser) return;
 
-        if (this.isEditMode && this.editingId !== null) {
-            const idx = this.usuarios.findIndex((u) => u.id === this.editingId);
-            if (idx !== -1) {
-                this.usuarios[idx] = { id: this.editingId, ...formValue };
-                this.usuarios = [...this.usuarios];
-            }
-        } else {
-            const newUsuario: Usuario = { id: this.nextId++, ...formValue };
-            this.usuarios = [...this.usuarios, newUsuario];
-        }
+        const { fullName, activo } = this.usuarioForm.value;
+        const userId = this.editingUser.id;
 
-        this.authService.setUserPermissions(email, this.selectedPermissions);
-        this.messageService.add({
-            severity: 'success',
-            summary: this.isEditMode ? 'Usuario actualizado' : 'Usuario creado',
-            detail: 'Los permisos granulares han sido aplicados correctamente.',
+        // Actualizar datos del usuario
+        this.authService.updateUser(userId, { full_name: fullName, activo }).subscribe();
+
+        // Guardar permisos (también actualiza localStorage si es el usuario actual)
+        this.authService.saveUserPermissions(userId, this.selectedPermissions).subscribe({
+            next: () => {
+                const idx = this.usuarios.findIndex((u) => u.id === userId);
+                if (idx !== -1) {
+                    this.usuarios[idx] = { ...this.usuarios[idx], fullName, activo };
+                    this.usuarios = [...this.usuarios];
+                }
+                this.messageService.add({
+                    severity: 'success',
+                    summary: 'Usuario actualizado',
+                    detail: `Permisos de "${this.editingUser!.email}" guardados correctamente.`,
+                });
+                this.dialogVisible = false;
+                this.cdr.detectChanges();
+            },
+            error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo guardar.' }),
         });
-        this.dialogVisible = false;
     }
 
-    deleteUsuario(usuario: Usuario): void {
+    deleteUsuario(usuario: BackendUser): void {
         this.confirmationService.confirm({
-            message: `¿Estás seguro de eliminar al usuario "<b>${usuario.nombre} ${usuario.apellido}</b>"?`,
+            message: `¿Estás seguro de eliminar a "<b>${usuario.fullName}</b>"?`,
             header: 'Confirmar eliminación',
             icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'Sí, eliminar',
+            rejectLabel: 'Cancelar',
+            acceptButtonStyleClass: 'p-button-danger',
             accept: () => {
-                this.usuarios = this.usuarios.filter((u) => u.id !== usuario.id);
-                this.messageService.add({ severity: 'success', summary: 'Usuario eliminado' });
+                this.authService.deleteUser(usuario.id).subscribe({
+                    next: () => {
+                        this.usuarios = this.usuarios.filter((u) => u.id !== usuario.id);
+                        this.messageService.add({ severity: 'success', summary: 'Usuario eliminado' });
+                        this.cdr.detectChanges();
+                    },
+                    error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo eliminar.' }),
+                });
             },
         });
-    }
-
-    getPermissionsDescription(email: string): string {
-        const perms = this.authService.getUserPermissions(email);
-        if (perms.length === 0) return 'Sin permisos';
-        if (perms.length === this.allPermissions.length) return 'SuperAdmin (Todos)';
-        return `${perms.length} permisos asignados`;
-    }
-
-    closeDialog(): void {
-        this.dialogVisible = false;
     }
 
     permissionLabel(perm: Permission): string {
@@ -172,6 +189,15 @@ export class UsuariosComponent implements OnInit {
             'user:delete':       'Eliminar usuarios',
         };
         return labels[perm] ?? perm;
+    }
+
+    getPermissionsDescription(usuario: BackendUser): string {
+        // Aproximación: se muestra en la tabla pero la fuente real es el backend
+        return '—';
+    }
+
+    closeDialog(): void {
+        this.dialogVisible = false;
     }
 
     isInvalid(field: string): boolean {

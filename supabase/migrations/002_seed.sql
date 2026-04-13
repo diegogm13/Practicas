@@ -4,7 +4,17 @@
 -- =============================================================
 
 -- -------------------------
--- 1. PERMISOS (14 permisos)
+-- 1. TICKET_ESTADOS
+-- -------------------------
+INSERT INTO ticket_estados (nombre) VALUES
+    ('Pendiente'),
+    ('En Progreso'),
+    ('Revisión'),
+    ('Finalizado')
+ON CONFLICT (nombre) DO NOTHING;
+
+-- -------------------------
+-- 2. PERMISOS (14 permisos)
 -- -------------------------
 INSERT INTO permisos (clave, descripcion) VALUES
     ('group:view',        'Ver grupos'),
@@ -24,47 +34,50 @@ INSERT INTO permisos (clave, descripcion) VALUES
 ON CONFLICT (clave) DO NOTHING;
 
 -- -------------------------
--- 2. USUARIOS
+-- 3. USUARIOS
 -- Passwords (bcrypt costo 10):
 --   admin@miapp.com   → Admin@12345
 --   usuario@miapp.com → User@12345!
 --   test@miapp.com    → Test#12345
 -- -------------------------
-INSERT INTO usuarios (id, usuario, email, password_hash, full_name, address, phone, birth_date) VALUES
+INSERT INTO usuarios (id, usuario, email, password_hash, full_name, address, phone, birth_date, activo) VALUES
     (
         'a0000000-0000-0000-0000-000000000001',
         'admin',
         'admin@miapp.com',
-        '$2b$10$wGMyK5yGAfa1ebH9n.hsCu5lAIWj2gtavT/jO20J9GHKMOGhWN/Ra',
-        'Admin Principal',
+        '$2b$10$UdZ9wGCTSYHpYDGh.CQt.O9DDaxlIzTtdbrXuo92Ocdicz1KJQheC',
+        'Carlos Ramírez',
         'Calle Principal 1',
         '555-0001',
-        '1990-01-01'
+        '1990-01-01',
+        true
     ),
     (
         'a0000000-0000-0000-0000-000000000002',
         'usuario',
         'usuario@miapp.com',
-        '$2b$10$jhj2sf.aTmR.ns.EJMElHOZASbot3H/8FnMd9SfWcNHclYY6UlREK',
-        'Usuario Estándar',
+        '$2b$10$wiMMYgqRSRWtwKmqsFRvned19L5BdYN/euaLU7PenZClyvVBoe55i',
+        'Laura Mendoza',
         'Calle Secundaria 2',
         '555-0002',
-        '1995-05-15'
+        '1995-05-15',
+        true
     ),
     (
         'a0000000-0000-0000-0000-000000000003',
         'test',
         'test@miapp.com',
-        '$2b$10$26ZS4LgEkgnKXT/4I0KhjOmyf/B4GVkwfeSQdHSsVR82Hmc/5mVze',
-        'Test User',
+        '$2b$10$kj25Lt2ngAi6L9V2rHys8uCDNFxIz8M3zDz3I28sNTlqiqGkgLsuy',
+        'Pedro Soto',
         'Calle de Pruebas 3',
         '555-0003',
-        '2000-12-31'
+        '2000-12-31',
+        false
     )
 ON CONFLICT (email) DO NOTHING;
 
 -- -------------------------
--- 3. USUARIO_PERMISOS
+-- 4. USUARIO_PERMISOS
 -- admin → todos (14)
 -- usuario → group:view, ticket:view, ticket:edit_state
 -- test → group:view, ticket:view
@@ -88,7 +101,7 @@ WHERE clave IN ('group:view', 'ticket:view')
 ON CONFLICT DO NOTHING;
 
 -- -------------------------
--- 4. GRUPOS
+-- 5. GRUPOS
 -- -------------------------
 INSERT INTO grupos (id, nombre, categoria, nivel, autor_id) VALUES
     (1, 'Grupo Alpha', 'Tecnología', 'Avanzado',   'a0000000-0000-0000-0000-000000000001'),
@@ -96,13 +109,12 @@ INSERT INTO grupos (id, nombre, categoria, nivel, autor_id) VALUES
     (3, 'Grupo Gamma', 'Ventas',     'Básico',      'a0000000-0000-0000-0000-000000000003')
 ON CONFLICT (id) DO NOTHING;
 
--- Reiniciar secuencia para que los próximos grupos no colisionen
 SELECT setval('grupos_id_seq', 3);
 
 -- -------------------------
--- 5. GRUPO_MIEMBROS
+-- 6. GRUPO_MIEMBROS
 -- Alpha: admin, usuario, test
--- Beta: usuario, test
+-- Beta:  usuario, test
 -- Gamma: test, admin, usuario
 -- -------------------------
 INSERT INTO grupo_miembros (grupo_id, usuario_id) VALUES
@@ -120,14 +132,15 @@ INSERT INTO grupo_miembros (grupo_id, usuario_id) VALUES
 ON CONFLICT DO NOTHING;
 
 -- -------------------------
--- 6. TICKETS (4 del Grupo Alpha)
+-- 7. TICKETS (4 del Grupo Alpha)
+-- estado_id: 1=Pendiente, 2=En Progreso, 3=Revisión, 4=Finalizado
 -- -------------------------
-INSERT INTO tickets (id, titulo, descripcion, estado, prioridad, asignado_a, creador_id, fecha_creacion, fecha_limite, grupo_id) VALUES
+INSERT INTO tickets (id, titulo, descripcion, estado_id, prioridad, asignado_a, creador_id, fecha_creacion, fecha_limite, grupo_id) VALUES
     (
         1,
         'Configurar entorno de staging',
         'Levantar entorno de staging con Docker Compose para pruebas de integración.',
-        'En Progreso', 'Alta',
+        2, 'Alta',
         'a0000000-0000-0000-0000-000000000001',
         'a0000000-0000-0000-0000-000000000001',
         '2026-02-10', '2026-03-15', 1
@@ -136,7 +149,7 @@ INSERT INTO tickets (id, titulo, descripcion, estado, prioridad, asignado_a, cre
         2,
         'Revisar vulnerabilidades de seguridad',
         'Ejecutar OWASP ZAP y corregir hallazgos críticos.',
-        'Pendiente', 'Crítica',
+        1, 'Crítica',
         'a0000000-0000-0000-0000-000000000002',
         'a0000000-0000-0000-0000-000000000001',
         '2026-02-15', '2026-03-10', 1
@@ -145,7 +158,7 @@ INSERT INTO tickets (id, titulo, descripcion, estado, prioridad, asignado_a, cre
         3,
         'Optimizar consultas SQL del módulo de reportes',
         'Varias consultas superan los 3 segundos en producción.',
-        'Revisión', 'Media',
+        3, 'Media',
         'a0000000-0000-0000-0000-000000000003',
         'a0000000-0000-0000-0000-000000000002',
         '2026-02-18', '2026-03-20', 1
@@ -154,7 +167,7 @@ INSERT INTO tickets (id, titulo, descripcion, estado, prioridad, asignado_a, cre
         4,
         'Actualizar dependencias de Node.js',
         'Migrar a Node 22 LTS y actualizar paquetes desactualizados.',
-        'Finalizado', 'Baja',
+        4, 'Baja',
         'a0000000-0000-0000-0000-000000000001',
         'a0000000-0000-0000-0000-000000000003',
         '2026-01-20', '2026-02-28', 1
@@ -164,24 +177,19 @@ ON CONFLICT (id) DO NOTHING;
 SELECT setval('tickets_id_seq', 4);
 
 -- -------------------------
--- 7. TICKET_COMENTARIOS
+-- 8. TICKET_COMENTARIOS
 -- -------------------------
 INSERT INTO ticket_comentarios (ticket_id, autor_id, texto, fecha) VALUES
-    (
-        1,
-        'a0000000-0000-0000-0000-000000000001',
-        'Iniciando configuración de Docker.',
-        '2026-02-11'
-    )
+    (1, 'a0000000-0000-0000-0000-000000000001', 'Iniciando configuración de Docker.', '2026-02-11')
 ON CONFLICT DO NOTHING;
 
 -- -------------------------
--- 8. TICKET_HISTORIAL
+-- 9. TICKET_HISTORIAL
 -- -------------------------
 INSERT INTO ticket_historial (ticket_id, autor_id, cambio, fecha) VALUES
-    (1, 'a0000000-0000-0000-0000-000000000001', 'Ticket creado',                    '2026-02-10'),
-    (1, 'a0000000-0000-0000-0000-000000000001', 'Estado cambiado a En Progreso',    '2026-02-12'),
-    (2, 'a0000000-0000-0000-0000-000000000001', 'Ticket creado',                    '2026-02-15'),
-    (3, 'a0000000-0000-0000-0000-000000000002', 'Ticket creado',                    '2026-02-18'),
-    (4, 'a0000000-0000-0000-0000-000000000003', 'Ticket creado',                    '2026-01-20')
+    (1, 'a0000000-0000-0000-0000-000000000001', 'Ticket creado',                 '2026-02-10'),
+    (1, 'a0000000-0000-0000-0000-000000000001', 'Estado cambiado a En Progreso', '2026-02-12'),
+    (2, 'a0000000-0000-0000-0000-000000000001', 'Ticket creado',                 '2026-02-15'),
+    (3, 'a0000000-0000-0000-0000-000000000002', 'Ticket creado',                 '2026-02-18'),
+    (4, 'a0000000-0000-0000-0000-000000000003', 'Ticket creado',                 '2026-01-20')
 ON CONFLICT DO NOTHING;
