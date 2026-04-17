@@ -92,6 +92,7 @@ export class TicketsComponent implements OnInit {
     selectedTicket: Ticket | null = null;
     ticketForm!: FormGroup;
     newComment = '';
+    savingTicket = false;
 
     // Quick filters — admin ve todos; usuario normal solo los suyos
     quickFilter: 'todos' | 'mis-tickets' | 'sin-asignar' | 'prioridad-alta' = 'mis-tickets';
@@ -247,8 +248,9 @@ export class TicketsComponent implements OnInit {
     }
 
     saveTicket(): void {
-        if (this.ticketForm.invalid) return;
+        if (this.ticketForm.invalid || this.savingTicket) return;
 
+        this.savingTicket = true;
         const v = this.ticketForm.getRawValue();
 
         if (this.isEditMode && this.selectedTicket) {
@@ -259,6 +261,7 @@ export class TicketsComponent implements OnInit {
                     summary: 'Acceso denegado',
                     detail: 'No tienes permisos para cambiar el estado de este ticket.',
                 });
+                this.savingTicket = false;
                 return;
             }
 
@@ -275,9 +278,13 @@ export class TicketsComponent implements OnInit {
                     this.messageService.add({ severity: 'success', summary: 'Sincronizado', detail: 'Ticket actualizado.' });
                     this.loadData();
                     this.ticketDialogVisible = false;
+                    this.savingTicket = false;
+                    this.cdr.markForCheck();
                 },
                 error: () => {
                     this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo actualizar el ticket.' });
+                    this.savingTicket = false;
+                    this.cdr.markForCheck();
                 },
             });
         } else {
@@ -297,9 +304,13 @@ export class TicketsComponent implements OnInit {
                     this.messageService.add({ severity: 'success', summary: 'Creado', detail: 'Nuevo ticket generado.' });
                     this.loadData();
                     this.ticketDialogVisible = false;
+                    this.savingTicket = false;
+                    this.cdr.markForCheck();
                 },
                 error: () => {
                     this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo crear el ticket.' });
+                    this.savingTicket = false;
+                    this.cdr.markForCheck();
                 },
             });
         }

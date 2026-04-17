@@ -174,8 +174,8 @@
         </div>
     </form>
     <ng-template pTemplate="footer">
-        <p-button label="Cancelar" [text]="true" severity="secondary" (onClick)="ticketDialogVisible = false"></p-button>
-        <p-button label="Guardar" icon="pi pi-check" (onClick)="saveTicket()"></p-button>
+        <p-button label="Cancelar" [text]="true" severity="secondary" [disabled]="savingTicket" (onClick)="ticketDialogVisible = false"></p-button>
+        <p-button label="Guardar" icon="pi pi-check" [disabled]="savingTicket" [loading]="savingTicket" (onClick)="saveTicket()"></p-button>
     </ng-template>
 </p-dialog>
 
