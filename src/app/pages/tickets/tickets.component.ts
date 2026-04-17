@@ -63,8 +63,6 @@ export class TicketsComponent implements OnInit {
     tickets: Ticket[] = [];
     members: GroupMember[] = [];
     memberOptions: { label: string; value: string }[] = [];
-
-    // View toggle
     viewOptions = [
         { label: 'Kanban', value: 'kanban', icon: 'pi pi-th-large' },
         { label: 'Lista', value: 'lista', icon: 'pi pi-list' },
@@ -108,15 +106,15 @@ export class TicketsComponent implements OnInit {
         private fb: FormBuilder,
         private messageService: MessageService,
         private cdr: ChangeDetectorRef,
-        private permissionService: PermissionService,
+        public permissionService: PermissionService,
     ) {}
 
     ngOnInit(): void {
         this.grupoId = Number(this.route.snapshot.paramMap.get('grupoId') ?? 1);
         this.currentUser = this.authService.getCurrentUser();
         this.currentUserId = this.authService.getCurrentUserId();
-        // Admin ve todos; usuario normal solo sus tickets
-        this.quickFilter = this.permissionService.hasPermission('users:view') ? 'todos' : 'mis-tickets';
+        // Todos ven todos los tickets, pero solo pueden editar los que les fueron asignados
+        this.quickFilter = 'todos';
         
         // Refrescar los permisos específicos de este grupo
         this.permissionService.refreshPermissionsForGroup(String(this.grupoId));
@@ -167,10 +165,19 @@ export class TicketsComponent implements OnInit {
 
     canChangeStatus(ticket: Ticket | null): boolean {
         if (!ticket) return true;
+        // El asignado siempre puede mover su ticket, o si tiene permisos globales
         return (
             ticket.asignadoA === this.currentUserId ||
+            this.permissionService.hasPermission('users:view') // Admin global
+        );
+    }
+
+    canEditTicket(ticket: Ticket): boolean {
+        // Solo el creador, asignado, o alguien con permisos globales pueden editar
+        return (
             ticket.creador === this.currentUserId ||
-            this.permissionService.hasPermission('ticket:edit_state', this.grupoId)
+            ticket.asignadoA === this.currentUserId ||
+            this.permissionService.hasPermission('users:view') // Admin global
         );
     }
 
@@ -245,6 +252,16 @@ export class TicketsComponent implements OnInit {
         const v = this.ticketForm.getRawValue();
 
         if (this.isEditMode && this.selectedTicket) {
+            // Validar que el usuario puede cambiar el estado si lo intenta
+            if (v.estado !== this.selectedTicket.estado && !this.canChangeStatus(this.selectedTicket)) {
+                this.messageService.add({
+                    severity: 'error',
+                    summary: 'Acceso denegado',
+                    detail: 'No tienes permisos para cambiar el estado de este ticket.',
+                });
+                return;
+            }
+
             const changes: Partial<Ticket> = {
                 titulo: v.titulo,
                 descripcion: v.descripcion,
@@ -289,8 +306,8 @@ export class TicketsComponent implements OnInit {
     }
 
     deleteTicket(ticket: Ticket): void {
-        if (ticket.creador !== this.currentUserId && !this.permissionService.hasPermission('ticket:delete', this.grupoId)) {
-            this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Solo el creador o alguien con permiso de eliminación puede borrarlo.' });
+        if (ticket.creador !== this.currentUserId && !this.permissionService.hasPermission('users:view')) {
+            this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Solo el creador o un admin puede eliminar este ticket.' });
             return;
         }
         this.ticketService.deleteTicket(ticket.id).subscribe({
@@ -323,9 +340,15 @@ export class TicketsComponent implements OnInit {
 
     // Drag and Drop Logic
     onDragStart(ticket: Ticket): void {
-        if (this.canChangeStatus(ticket)) {
-            this.draggedTicket = ticket;
+        if (!this.canChangeStatus(ticket)) {
+            this.messageService.add({
+                severity: 'warn',
+                summary: 'Acceso denegado',
+                detail: 'Este ticket no te pertenece y no tienes permisos para moverlo.',
+            });
+            return;
         }
+        this.draggedTicket = ticket;
     }
 
     onDragEnd(): void {
@@ -333,17 +356,27 @@ export class TicketsComponent implements OnInit {
     }
 
     onDrop(newEstado: EstadoTicket): void {
-        if (this.draggedTicket && this.draggedTicket.estado !== newEstado) {
-            this.ticketService.changeEstado(this.draggedTicket.id, newEstado).subscribe({
-                next: () => {
-                    this.messageService.add({ severity: 'success', summary: 'Movido', detail: `Ticket a ${newEstado}` });
-                    this.loadData();
-                },
-                error: () => {
-                    this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo cambiar el estado.' });
-                },
+        if (!this.draggedTicket || this.draggedTicket.estado === newEstado) return;
+        
+        // Validar que el usuario puede cambiar el estado del ticket
+        if (!this.canChangeStatus(this.draggedTicket)) {
+            this.messageService.add({
+                severity: 'error',
+                summary: 'Acceso denegado',
+                detail: 'No tienes permisos para mover este ticket.',
             });
+            return;
         }
+
+        this.ticketService.changeEstado(this.draggedTicket.id, newEstado).subscribe({
+            next: () => {
+                this.messageService.add({ severity: 'success', summary: 'Movido', detail: `Ticket a ${newEstado}` });
+                this.loadData();
+            },
+            error: () => {
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo cambiar el estado.' });
+            },
+        });
     }
 
     isInvalid(field: string): boolean {

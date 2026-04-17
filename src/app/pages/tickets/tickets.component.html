@@ -66,19 +66,21 @@
                         ></p-tag>
                         <div class="kanban-card-actions" (click)="$event.stopPropagation()">
                             <p-button
-                                *hasPermission="'ticket:edit'; group: ticket.grupoId"
+                                [disabled]="!canEditTicket(ticket)"
                                 icon="pi pi-pencil"
                                 [text]="true"
                                 severity="info"
                                 size="small"
+                                [title]="canEditTicket(ticket) ? 'Editar' : 'Solo puedes editar tus tickets'"
                                 (onClick)="openEdit(ticket)"
                             ></p-button>
                             <p-button
-                                *hasPermission="'ticket:delete'; group: ticket.grupoId"
+                                [disabled]="!(ticket.creador === currentUserId || permissionService.hasPermission('ticket:delete', grupoId))"
                                 icon="pi pi-trash"
                                 [text]="true"
                                 severity="danger"
                                 size="small"
+                                [title]="ticket.creador === currentUserId || permissionService.hasPermission('ticket:delete', grupoId) ? 'Eliminar' : 'Solo el creador puede eliminar'"
                                 (onClick)="deleteTicket(ticket)"
                             ></p-button>
                         </div>
@@ -121,7 +123,14 @@
                 <td>{{ ticket.creador }}</td>
                 <td style="text-align:center">
                     <p-button icon="pi pi-eye" [text]="true" (onClick)="openDetail(ticket)"></p-button>
-                    <p-button *hasPermission="'ticket:edit'; group: ticket.grupoId" icon="pi pi-pencil" [text]="true" severity="info" (onClick)="openEdit(ticket)"></p-button>
+                    <p-button 
+                        [disabled]="!canEditTicket(ticket)" 
+                        icon="pi pi-pencil" 
+                        [text]="true" 
+                        severity="info" 
+                        [title]="canEditTicket(ticket) ? 'Editar' : 'Solo puedes editar tus tickets'"
+                        (onClick)="openEdit(ticket)"
+                    ></p-button>
                 </td>
             </tr>
         </ng-template>
