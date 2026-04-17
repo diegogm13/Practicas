@@ -158,3 +158,58 @@
     font-size: 0.875rem;
     color: #374151;
 }
+
+/* ── Form row (nombre + apellido side by side) ───────────────── */
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+/* ── Toggle container ────────────────────────────────────────── */
+.active-toggle { flex-direction: column; }
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.toggle-text { font-size: 0.875rem; color: #374151; }
+
+/* ── Loading state ───────────────────────────────────────────── */
+.usuarios-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    gap: 1rem;
+    color: #64748b;
+}
+
+/* ── Permissions manager ─────────────────────────────────────── */
+.user-dialog-content { display: flex; flex-direction: column; gap: 1rem; }
+.permissions-manager { display: flex; flex-direction: column; gap: 0.75rem; padding-top: 0.5rem; }
+.permissions-manager h4 { font-size: 0.95rem; font-weight: 600; color: #374151; margin: 0; display: flex; align-items: center; gap: 0.4rem; }
+.permissions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.perm-card { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; border-radius: 6px; background: #f8fafc; font-size: 0.85rem; }
+.perms-loading { display: flex; justify-content: center; padding: 1rem; }
+
+/* ── Temp password note ──────────────────────────────────────── */
+.temp-password-note {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.85rem;
+    color: #1e40af;
+}
+/* ── Group Permissions Styling ───────────────────────────────── */
+.dialog-tip { font-size: 0.85rem; color: #64748b; margin-top: -0.5rem; }
+.group-perm { border: 1px solid #fed7aa; background: #fffaf5; }
+.text-hint { font-size: 0.72rem; color: #9a3412; font-weight: 400; margin-top: 0.15rem; }
+.block { display: block; }
+.ml-2 { margin-left: 0.5rem; }
+.group-selector { margin-bottom: 0.5rem; }

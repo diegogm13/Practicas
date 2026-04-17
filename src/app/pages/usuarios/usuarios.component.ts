@@ -1,7 +1,9 @@
 'use strict';
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { forkJoin } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { DialogModule } from 'primeng/dialog';
@@ -13,9 +15,11 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { CheckboxModule } from 'primeng/checkbox';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TagModule } from 'primeng/tag';
+import { SelectModule } from 'primeng/select';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { HasPermissionDirective } from '../../directives/has-permission.directive';
 import { AuthService, BackendUser, Permission } from '../../services/auth.service';
+import { TicketService, GroupInfo } from '../../services/ticket.service';
 
 @Component({
     selector: 'app-usuarios',
@@ -35,15 +39,18 @@ import { AuthService, BackendUser, Permission } from '../../services/auth.servic
         CheckboxModule,
         ProgressSpinnerModule,
         TagModule,
+        SelectModule,
         HasPermissionDirective,
     ],
     providers: [MessageService, ConfirmationService],
     templateUrl: './usuarios.component.html',
     styleUrl: './usuarios.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UsuariosComponent implements OnInit {
     usuarios: BackendUser[] = [];
-    usuarioForm!: FormGroup;
+    editForm!: FormGroup;
+    createForm!: FormGroup;
     dialogVisible = false;
     isEditMode = false;
     editingUser: BackendUser | null = null;
@@ -53,18 +60,44 @@ export class UsuariosComponent implements OnInit {
     selectedPermissions: Permission[] = [];
     loadingPermissions = false;
 
+    // Gestión de permisos de grupo
+    groupPermsDialogVisible = false;
+    selectedGroupPermissions: string[] = [];
+    loadingGroupPermissions = false;
+    targetUserForGroupPerms: BackendUser | null = null;
+    permissionCatalog: { clave: string; descripcion: string }[] = [];
+    userGroupsForPerms: { label: string; value: number }[] = [];
+    selectedGroupIdForPerms: number | null = null;
+
+    get filteredGroupPermissionCatalog() {
+        return this.permissionCatalog.filter(p => p.clave.startsWith('ticket:'));
+    }
+
+    grupos: { label: string; value: number }[] = [];
+
     constructor(
         private fb: FormBuilder,
         private messageService: MessageService,
         private confirmationService: ConfirmationService,
         private authService: AuthService,
+        private ticketService: TicketService,
         private cdr: ChangeDetectorRef,
     ) {}
 
     ngOnInit(): void {
         this.allPermissions = this.authService.getAllAvailablePermissions();
-        this.buildForm();
+        this.buildForms();
         this.loadUsuarios();
+        this.ticketService.getGroups().subscribe((gs) => {
+            this.grupos = gs.map((g) => ({ label: g.nombre, value: g.id }));
+            this.cdr.markForCheck();
+        });
+        
+        // Cargar catálogo completo desde el backend si está disponible
+        this.authService.getPermissionCatalog().subscribe(cat => {
+            this.permissionCatalog = cat;
+            this.cdr.markForCheck();
+        });
     }
 
     loadUsuarios(): void {
@@ -73,20 +106,28 @@ export class UsuariosComponent implements OnInit {
             next: (users) => {
                 this.usuarios = users;
                 this.loading = false;
-                this.cdr.detectChanges();
+                this.cdr.markForCheck();
             },
             error: () => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudieron cargar los usuarios.' });
                 this.loading = false;
-                this.cdr.detectChanges();
+                this.cdr.markForCheck();
             },
         });
     }
 
-    buildForm(): void {
-        this.usuarioForm = this.fb.group({
+    buildForms(): void {
+        this.createForm = this.fb.group({
+            nombre:   ['', [Validators.required, Validators.minLength(2)]],
+            apellido: ['', [Validators.required, Validators.minLength(2)]],
+            email:    ['', [Validators.required, Validators.email]],
+            activo:   [true],
+            grupo_id: [null],
+        });
+
+        this.editForm = this.fb.group({
             fullName: ['', [Validators.required, Validators.minLength(2)]],
-            activo: [true],
+            activo:   [true],
         });
     }
 
@@ -94,7 +135,7 @@ export class UsuariosComponent implements OnInit {
         this.isEditMode = false;
         this.editingUser = null;
         this.selectedPermissions = [];
-        this.usuarioForm.reset({ activo: true });
+        this.createForm.reset({ activo: true });
         this.dialogVisible = true;
     }
 
@@ -103,34 +144,53 @@ export class UsuariosComponent implements OnInit {
         this.editingUser = usuario;
         this.selectedPermissions = [];
         this.loadingPermissions = true;
-        this.usuarioForm.patchValue({ fullName: usuario.fullName, activo: usuario.activo });
+        this.editForm.patchValue({ fullName: usuario.fullName, activo: usuario.activo });
         this.dialogVisible = true;
 
         this.authService.getUserPermissionsFromBackend(usuario.id).subscribe({
             next: (perms) => {
                 this.selectedPermissions = perms;
                 this.loadingPermissions = false;
-                this.cdr.detectChanges();
+                this.cdr.markForCheck();
             },
-            error: () => { this.loadingPermissions = false; this.cdr.detectChanges(); },
+            error: () => { this.loadingPermissions = false; this.cdr.markForCheck(); },
         });
     }
 
     saveUsuario(): void {
-        if (this.usuarioForm.invalid) {
-            this.usuarioForm.markAllAsTouched();
+        if (!this.isEditMode) {
+            // Modo crear
+            if (this.createForm.invalid) {
+                this.createForm.markAllAsTouched();
+                this.messageService.add({ severity: 'warn', summary: 'Formulario inválido', detail: 'Completa los campos requeridos.' });
+                return;
+            }
+            const v = this.createForm.value;
+            this.authService.createUser(v).subscribe({
+                next: (res) => {
+                    if (res.success) {
+                        this.messageService.add({ severity: 'success', summary: 'Usuario creado', detail: res.message });
+                        this.dialogVisible = false;
+                        this.loadUsuarios();
+                    } else {
+                        this.messageService.add({ severity: 'error', summary: 'Error', detail: res.message });
+                    }
+                    this.cdr.markForCheck();
+                },
+            });
             return;
         }
 
-        if (!this.editingUser) return;
-
-        const { fullName, activo } = this.usuarioForm.value;
+        // Modo editar
+        if (this.editForm.invalid || !this.editingUser) {
+            this.editForm.markAllAsTouched();
+            return;
+        }
+        const { fullName, activo } = this.editForm.value;
         const userId = this.editingUser.id;
 
-        // Actualizar datos del usuario
         this.authService.updateUser(userId, { full_name: fullName, activo }).subscribe();
 
-        // Guardar permisos (también actualiza localStorage si es el usuario actual)
         this.authService.saveUserPermissions(userId, this.selectedPermissions).subscribe({
             next: () => {
                 const idx = this.usuarios.findIndex((u) => u.id === userId);
@@ -141,12 +201,96 @@ export class UsuariosComponent implements OnInit {
                 this.messageService.add({
                     severity: 'success',
                     summary: 'Usuario actualizado',
-                    detail: `Permisos de "${this.editingUser!.email}" guardados correctamente.`,
+                    detail: `Permisos globales de "${this.editingUser!.email}" guardados correctamente.`,
                 });
                 this.dialogVisible = false;
-                this.cdr.detectChanges();
+                this.cdr.markForCheck();
             },
             error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo guardar.' }),
+        });
+    }
+
+    // ── Gestión de permisos de grupo ─────────────────────────────────────────
+
+    openGroupPermissions(usuario: BackendUser): void {
+        // Encontrar a qué grupo pertenece el usuario (esto es simplificado, asumiendo 1 grupo por ahora)
+        // O podríamos preguntar al backend a qué grupos pertenece.
+        // Para este ERP, el usuario se asigna a un grupo_id en el registro.
+        
+        this.targetUserForGroupPerms = usuario;
+        this.selectedGroupPermissions = [];
+        this.loadingGroupPermissions = true;
+        this.groupPermsDialogVisible = true;
+
+        // Necesitamos saber qué grupos tiene asignados. Para simplificar, buscamos si tiene un grupoId asociado
+        // Nota: El modelo BackendUser actual no tiene grupoId, lo buscaremos en el formulario si es necesario
+        // Pero el backend ya tiene los permisos por grupo.
+        
+        // Vamos a asumir que gestionamos los permisos para el GRUPO PRINCIPAL o que el usuario elige si tiene varios.
+        // Pero el requerimiento dice "al grupo que este asignado".
+        
+        // Para hacerlo bien, primero obtenemos los grupos del usuario actual (el que estamos editando)
+        // O simplemente permitimos gestionar para CUALQUIER grupo si el admin quiere, pero lo usual es el suyo.
+        
+        // Vamos a buscar en los grupos disponibles si el usuario es miembro de alguno.
+        // Dado que el componente no tiene los IDs de grupo por usuario cargados, usaremos una estrategia simple:
+        // Si el usuario tiene un grupo asignado (lo sabemos por el backend en una consulta extra o si lo añadimos al modelo)
+        
+        // Realizaremos una consulta para ver en qué grupos está el usuario
+        this.ticketService.getGroups().subscribe(allGroups => {
+            // Buscamos en qué grupos es miembro este usuario
+            const memberShipChecks = allGroups.map(g => 
+                this.ticketService.getMembersByGroup(g.id).pipe(
+                    map((members: any[]) => ({ groupId: g.id, groupName: g.nombre, isMember: members.some((m: any) => m.userId === usuario.id) }))
+                )
+            );
+
+            forkJoin(memberShipChecks).subscribe((results: any[]) => {
+                this.userGroupsForPerms = results
+                    .filter((r: any) => r.isMember)
+                    .map((r: any) => ({ label: r.groupName, value: r.groupId }));
+
+                if (this.userGroupsForPerms.length === 0) {
+                    this.messageService.add({ severity: 'warn', summary: 'Sin grupo', detail: 'Este usuario no pertenece a ningún grupo.' });
+                    this.loadingGroupPermissions = false;
+                    this.groupPermsDialogVisible = false;
+                } else {
+                    // Seleccionar el primero por defecto y cargar sus permisos
+                    this.selectedGroupIdForPerms = this.userGroupsForPerms[0].value;
+                    this.loadSpecificGroupPermissions();
+                }
+                this.cdr.markForCheck();
+            });
+        });
+    }
+
+    loadSpecificGroupPermissions(): void {
+        if (!this.targetUserForGroupPerms || !this.selectedGroupIdForPerms) return;
+        
+        this.loadingGroupPermissions = true;
+        this.selectedGroupPermissions = [];
+        
+        this.ticketService.getMemberPermissions(this.selectedGroupIdForPerms, this.targetUserForGroupPerms.id).subscribe(perms => {
+            this.selectedGroupPermissions = perms;
+            this.loadingGroupPermissions = false;
+            this.cdr.markForCheck();
+        });
+    }
+
+    saveGroupPermissions(): void {
+        if (!this.targetUserForGroupPerms || !this.selectedGroupIdForPerms) return;
+        
+        const userId = this.targetUserForGroupPerms.id;
+        const groupId = this.selectedGroupIdForPerms;
+
+        this.ticketService.saveMemberPermissions(groupId, userId, this.selectedGroupPermissions).subscribe(success => {
+            if (success) {
+                this.messageService.add({ severity: 'success', summary: 'Permisos de Grupo', detail: 'Actualizados correctamente.' });
+                this.groupPermsDialogVisible = false; // Cerrar el panel
+            } else {
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudieron actualizar.' });
+            }
+            this.cdr.markForCheck();
         });
     }
 
@@ -163,7 +307,7 @@ export class UsuariosComponent implements OnInit {
                     next: () => {
                         this.usuarios = this.usuarios.filter((u) => u.id !== usuario.id);
                         this.messageService.add({ severity: 'success', summary: 'Usuario eliminado' });
-                        this.cdr.detectChanges();
+                        this.cdr.markForCheck();
                     },
                     error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo eliminar.' }),
                 });
@@ -191,17 +335,17 @@ export class UsuariosComponent implements OnInit {
         return labels[perm] ?? perm;
     }
 
-    getPermissionsDescription(usuario: BackendUser): string {
-        // Aproximación: se muestra en la tabla pero la fuente real es el backend
-        return '—';
-    }
-
     closeDialog(): void {
         this.dialogVisible = false;
     }
 
+    isInvalidCreate(field: string): boolean {
+        const ctrl = this.createForm.get(field);
+        return !!(ctrl && ctrl.invalid && ctrl.touched);
+    }
+
     isInvalid(field: string): boolean {
-        const ctrl = this.usuarioForm.get(field);
+        const ctrl = this.editForm.get(field);
         return !!(ctrl && ctrl.invalid && ctrl.touched);
     }
 }

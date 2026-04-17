@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
@@ -7,15 +7,17 @@ import { AvatarModule } from 'primeng/avatar';
 import { TagModule } from 'primeng/tag';
 import { ChartModule } from 'primeng/chart';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { CarouselModule } from 'primeng/carousel';
 import { AuthService } from '../../services/auth.service';
 import { TicketService, GroupInfo, Ticket } from '../../services/ticket.service';
 
 @Component({
     selector: 'app-dashboard',
     standalone: true,
-    imports: [CommonModule, RouterModule, ButtonModule, CardModule, AvatarModule, TagModule, ChartModule, ProgressSpinnerModule],
+    imports: [CommonModule, RouterModule, ButtonModule, CardModule, AvatarModule, TagModule, ChartModule, ProgressSpinnerModule, CarouselModule],
     templateUrl: './dashboard.component.html',
     styleUrl: './dashboard.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent implements OnInit {
     isLoggedIn = false;
@@ -28,6 +30,7 @@ export class DashboardComponent implements OnInit {
     stats = { total: 0, pendiente: 0, enProgreso: 0, revision: 0, finalizado: 0 };
     userGroups: GroupInfo[] = [];
     userTickets: Ticket[] = [];
+    ticketStartIndex = 0;
 
     constructor(
         private authService: AuthService,
@@ -40,21 +43,23 @@ export class DashboardComponent implements OnInit {
         this.currentUser = this.authService.getCurrentUser();
 
         if (this.isLoggedIn) {
-            const currentUserId = this.authService.getCurrentUserId();
-
             this.ticketService.getGroups().subscribe((groups) => {
                 this.userGroups = groups;
-                this.cdr.detectChanges();
+                this.cdr.markForCheck();
             });
 
-            // Una sola llamada: filtra tickets del usuario Y computa stats/chart
+            // Stats globales (todos los tickets)
             this.ticketService.getAllTickets().subscribe((tickets) => {
-                this.userTickets = tickets.filter(
-                    (t) => t.asignadoA === currentUserId || t.creador === currentUserId
-                );
                 this.computeStats(tickets);
                 this.loading = false;
-                this.cdr.detectChanges();
+                this.cdr.markForCheck();
+            });
+
+            // Mis tickets: filtrado en el backend con ?mine=true
+            this.ticketService.getMyTickets().subscribe((tickets) => {
+                this.userTickets = tickets;
+                this.ticketStartIndex = 0;
+                this.cdr.markForCheck();
             });
         } else {
             this.loading = false;
@@ -126,6 +131,28 @@ export class DashboardComponent implements OnInit {
                 },
             },
         };
+    }
+
+    nextTickets(): void {
+        if (this.ticketStartIndex + 3 < this.userTickets.length) {
+            this.ticketStartIndex += 3;
+            this.cdr.markForCheck();
+        }
+    }
+
+    prevTickets(): void {
+        if (this.ticketStartIndex > 0) {
+            this.ticketStartIndex -= 3;
+            this.cdr.markForCheck();
+        }
+    }
+
+    get paginatedTickets(): Ticket[] {
+        return this.userTickets.slice(this.ticketStartIndex, this.ticketStartIndex + 3);
+    }
+
+    hasPermission(p: string): boolean {
+        return this.authService.hasPermission(p);
     }
 
     private initEmptyChart(): void {

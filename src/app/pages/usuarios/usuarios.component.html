@@ -16,6 +16,12 @@
 
     <p-toolbar class="usuarios-toolbar">
         <ng-template pTemplate="start">
+            <p-button
+                *hasPermission="'user:add'"
+                label="Nuevo Usuario"
+                icon="pi pi-user-plus"
+                (onClick)="openNew()"
+            ></p-button>
         </ng-template>
         <ng-template pTemplate="end">
             <span class="total-label">Total: <strong>{{ usuarios.length }}</strong></span>
@@ -57,7 +63,14 @@
                         [text]="true"
                         severity="info"
                         (onClick)="editUsuario(usuario)"
-                        pTooltip="Gestionar Permisos"
+                        pTooltip="Gestionar Permisos Globales"
+                    ></p-button>
+                    <p-button
+                        icon="pi pi-users"
+                        [text]="true"
+                        severity="warn"
+                        (onClick)="openGroupPermissions(usuario)"
+                        pTooltip="Permisos en su Grupo"
                     ></p-button>
                     <p-button
                         *hasPermission="'user:delete'"
@@ -80,34 +93,100 @@
 
 </div>
 
+<!-- ── Dialog CREAR usuario ──────────────────────────────────────── -->
 <p-dialog
     [(visible)]="dialogVisible"
-    [header]="'Gestionar Permisos — ' + (editingUser?.email ?? '')"
+    [header]="isEditMode ? 'Gestionar Permisos — ' + (editingUser?.email ?? '') : 'Nuevo Usuario'"
     [modal]="true"
     [style]="{ width: '600px' }"
     (onHide)="closeDialog()"
 >
+
+    @if (!isEditMode) {
+    <!-- Formulario de creación -->
+    <form [formGroup]="createForm" class="usuario-form">
+
+        <div class="form-row">
+            <div class="field">
+                <label>Nombre <span class="required">*</span></label>
+                <input type="text" pInputText formControlName="nombre" placeholder="Nombre"
+                       [class.ng-invalid]="isInvalidCreate('nombre')"
+                       [class.ng-dirty]="isInvalidCreate('nombre')" class="w-full" />
+                @if (isInvalidCreate('nombre')) {
+                    <small class="p-error">Nombre requerido (mín. 2 caracteres).</small>
+                }
+            </div>
+            <div class="field">
+                <label>Apellido <span class="required">*</span></label>
+                <input type="text" pInputText formControlName="apellido" placeholder="Apellido"
+                       [class.ng-invalid]="isInvalidCreate('apellido')"
+                       [class.ng-dirty]="isInvalidCreate('apellido')" class="w-full" />
+                @if (isInvalidCreate('apellido')) {
+                    <small class="p-error">Apellido requerido (mín. 2 caracteres).</small>
+                }
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Correo Electrónico <span class="required">*</span></label>
+            <input type="email" pInputText formControlName="email" placeholder="correo@ejemplo.com"
+                   [class.ng-invalid]="isInvalidCreate('email')"
+                   [class.ng-dirty]="isInvalidCreate('email')" class="w-full" />
+            @if (isInvalidCreate('email')) {
+                <small class="p-error">Correo válido requerido.</small>
+            }
+        </div>
+
+        <div class="field">
+            <label>Grupo (opcional)</label>
+            <p-select
+                formControlName="grupo_id"
+                [options]="grupos"
+                placeholder="Sin grupo"
+                [showClear]="true"
+                styleClass="w-full"
+            ></p-select>
+        </div>
+
+        <div class="field active-toggle">
+            <label>Estado</label>
+            <div class="toggle-container">
+                <p-toggleswitch formControlName="activo"></p-toggleswitch>
+                <span class="toggle-text">{{ createForm.get('activo')?.value ? 'Activo' : 'Inactivo' }}</span>
+            </div>
+        </div>
+
+        <div class="temp-password-note">
+            <i class="pi pi-info-circle"></i>
+            La contraseña temporal será: <strong>Temp@12345</strong>
+        </div>
+
+    </form>
+    }
+
+    @if (isEditMode) {
+    <!-- Formulario de edición / permisos -->
     <div class="user-dialog-content">
-        <form [formGroup]="usuarioForm" class="usuario-form">
+        <form [formGroup]="editForm" class="usuario-form">
             <div class="field">
                 <label>Nombre Completo</label>
                 <input type="text" pInputText formControlName="fullName" class="w-full" />
             </div>
-
             <div class="field active-toggle">
                 <label>Usuario Activo</label>
                 <div class="toggle-container">
                     <p-toggleswitch formControlName="activo"></p-toggleswitch>
-                    <span class="toggle-text">{{ usuarioForm.get('activo')?.value ? 'Sí' : 'No' }}</span>
+                    <span class="toggle-text">{{ editForm.get('activo')?.value ? 'Sí' : 'No' }}</span>
                 </div>
             </div>
         </form>
 
         <div class="permissions-manager">
             <h4><i class="pi pi-lock-open"></i> Permisos Granulares</h4>
-
             @if (loadingPermissions) {
-                <div class="perms-loading"><p-progressspinner strokeWidth="4" [style]="{width:'30px',height:'30px'}"></p-progressspinner></div>
+                <div class="perms-loading">
+                    <p-progressspinner strokeWidth="4" [style]="{width:'30px',height:'30px'}"></p-progressspinner>
+                </div>
             } @else {
             <div class="permissions-grid">
                 @for (perm of allPermissions; track perm) {
@@ -125,9 +204,72 @@
             }
         </div>
     </div>
+    }
 
     <ng-template pTemplate="footer">
         <p-button label="Cancelar" [text]="true" severity="secondary" (onClick)="closeDialog()"></p-button>
-        <p-button label="Guardar" icon="pi pi-check" (onClick)="saveUsuario()"></p-button>
+        <p-button
+            [label]="isEditMode ? 'Guardar' : 'Crear Usuario'"
+            [icon]="isEditMode ? 'pi pi-check' : 'pi pi-user-plus'"
+            (onClick)="saveUsuario()"
+        ></p-button>
+    </ng-template>
+</p-dialog>
+
+<!-- ── Dialog PERMISOS DE GRUPO ──────────────────────────────────── -->
+<p-dialog
+    [(visible)]="groupPermsDialogVisible"
+    [header]="'Permisos de Grupo — ' + (targetUserForGroupPerms?.email ?? '')"
+    [modal]="true"
+    [style]="{ width: '550px' }"
+>
+    <div class="user-dialog-content">
+        <p class="dialog-tip">Asigna qué puede hacer este usuario dentro de un grupo específico.</p>
+        
+        <div class="field group-selector">
+            <label>Seleccionar Grupo</label>
+            <p-select
+                [(ngModel)]="selectedGroupIdForPerms"
+                [options]="userGroupsForPerms"
+                (onChange)="loadSpecificGroupPermissions()"
+                placeholder="Selecciona un grupo"
+                styleClass="w-full"
+            ></p-select>
+        </div>
+
+        <div class="permissions-manager">
+            @if (loadingGroupPermissions) {
+                <div class="perms-loading">
+                    <p-progressspinner strokeWidth="4" [style]="{width:'40px',height:'40px'}"></p-progressspinner>
+                    <p>Consultando grupo y permisos...</p>
+                </div>
+            } @else {
+                <div class="permissions-grid">
+                    @for (perm of filteredGroupPermissionCatalog; track perm.clave) {
+                        <div class="perm-card group-perm">
+                            <p-checkbox
+                                [value]="perm.clave"
+                                [(ngModel)]="selectedGroupPermissions"
+                                [inputId]="'gp-' + perm.clave"
+                            ></p-checkbox>
+                            <label [for]="'gp-' + perm.clave" class="ml-2">
+                                <strong>{{ perm.clave }}</strong>
+                                <small class="block text-hint">{{ perm.descripcion }}</small>
+                            </label>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button label="Cancelar" [text]="true" severity="secondary" (onClick)="groupPermsDialogVisible = false"></p-button>
+        <p-button
+            label="Guardar Permisos"
+            icon="pi pi-save"
+            severity="warn"
+            (onClick)="saveGroupPermissions()"
+        ></p-button>
     </ng-template>
 </p-dialog>

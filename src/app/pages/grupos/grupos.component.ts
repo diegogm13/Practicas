@@ -1,7 +1,7 @@
 'use strict';
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
@@ -10,19 +10,22 @@ import { ToastModule } from 'primeng/toast';
 import { ToolbarModule } from 'primeng/toolbar';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { TooltipModule } from 'primeng/tooltip';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { HasPermissionDirective } from '../../directives/has-permission.directive';
-import { AuthService } from '../../services/auth.service';
+import { AuthService, BackendUser } from '../../services/auth.service';
 import { TicketService, GroupInfo } from '../../services/ticket.service';
+import { forkJoin, of } from 'rxjs';
 
 @Component({
     selector: 'app-grupos',
     standalone: true,
     imports: [
         CommonModule,
+        FormsModule,
         ReactiveFormsModule,
         ButtonModule,
         TableModule,
@@ -31,6 +34,7 @@ import { TicketService, GroupInfo } from '../../services/ticket.service';
         ToolbarModule,
         InputTextModule,
         SelectModule,
+        MultiSelectModule,
         ConfirmDialogModule,
         TooltipModule,
         ProgressSpinnerModule,
@@ -39,6 +43,7 @@ import { TicketService, GroupInfo } from '../../services/ticket.service';
     providers: [MessageService, ConfirmationService],
     templateUrl: './grupos.component.html',
     styleUrl: './grupos.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GruposComponent implements OnInit {
     groups: GroupInfo[] = [];
@@ -48,6 +53,12 @@ export class GruposComponent implements OnInit {
     isEditMode = false;
     editingId: number | null = null;
     loading = true;
+
+    // Miembros
+    availableUsers: { label: string; value: string }[] = [];
+    selectedMembers: string[] = [];
+    currentMemberIds: string[] = [];
+    loadingMembers = false;
 
     categorias = [
         { label: 'Tecnología', value: 'Tecnología' },
@@ -79,6 +90,17 @@ export class GruposComponent implements OnInit {
     ngOnInit(): void {
         this.buildForm();
         this.loadGroups();
+        this.loadAvailableUsers();
+    }
+
+    loadAvailableUsers(): void {
+        this.authService.getUsers().subscribe((users) => {
+            this.availableUsers = users.map((u) => ({
+                label: `${u.fullName} (${u.email})`,
+                value: u.id,
+            }));
+            this.cdr.markForCheck();
+        });
     }
 
     loadGroups(): void {
@@ -91,7 +113,7 @@ export class GruposComponent implements OnInit {
             error: () => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudieron cargar los grupos.' });
                 this.loading = false;
-                this.cdr.detectChanges();
+                this.cdr.markForCheck();
             },
         });
     }
@@ -104,39 +126,57 @@ export class GruposComponent implements OnInit {
                     this.ticketCounts[t.grupoId] = (this.ticketCounts[t.grupoId] ?? 0) + 1;
                 }
                 this.loading = false;
-                this.cdr.detectChanges();
+                this.cdr.markForCheck();
             },
             error: () => {
                 this.loading = false;
-                this.cdr.detectChanges();
+                this.cdr.markForCheck();
             },
         });
     }
 
     buildForm(): void {
         this.groupForm = this.fb.group({
-            nombre:    ['', [Validators.required, Validators.minLength(3)]],
-            categoria: ['', Validators.required],
-            nivel:     ['', Validators.required],
+            nombre:      ['', [Validators.required, Validators.minLength(3)]],
+            categoria:   ['', Validators.required],
+            nivel:       ['', Validators.required],
+            autor_email: ['', [Validators.required, Validators.email]],
         });
     }
 
     openNew(): void {
         this.isEditMode = false;
         this.editingId = null;
+        this.selectedMembers = [];
+        this.currentMemberIds = [];
         this.groupForm.reset();
+        this.groupForm.patchValue({ autor_email: this.authService.getCurrentUser() });
         this.dialogVisible = true;
     }
 
     editGroup(group: GroupInfo): void {
         this.isEditMode = true;
         this.editingId = group.id;
+        this.selectedMembers = [];
+        this.currentMemberIds = [];
+        this.loadingMembers = true;
         this.groupForm.patchValue({
-            nombre:    group.nombre,
-            categoria: group.categoria,
-            nivel:     group.nivel,
+            nombre:      group.nombre,
+            categoria:   group.categoria,
+            nivel:       group.nivel,
+            autor_email: this.authService.getCurrentUser(),
         });
         this.dialogVisible = true;
+
+        this.ticketService.getMembersByGroup(group.id).subscribe({
+            next: (members) => {
+                this.currentMemberIds = members.map((m) => m.userId).filter(Boolean);
+                this.selectedMembers = [...this.currentMemberIds];
+                this.loadingMembers = false;
+                this.cdr.markForCheck();
+            },
+            error: () => { this.loadingMembers = false; this.cdr.markForCheck(); },
+        });
     }
 
     saveGroup(): void {
@@ -146,7 +186,8 @@ export class GruposComponent implements OnInit {
             return;
         }
 
-        const payload = this.groupForm.value as { nombre: string; categoria: string; nivel: string };
+        const { nombre, categoria, nivel, autor_email } = this.groupForm.value;
+        const payload = { nombre, categoria, nivel, autor_email };
 
         if (this.isEditMode && this.editingId !== null) {
             this.ticketService.updateGroup(this.editingId, payload).subscribe({
@@ -154,9 +195,10 @@ export class GruposComponent implements OnInit {
                     const idx = this.groups.findIndex((g) => g.id === this.editingId);
                     if (idx !== -1) this.groups[idx] = updated;
                     this.groups = [...this.groups];
+                    this.syncMembers(this.editingId!, this.selectedMembers);
                     this.messageService.add({ severity: 'success', summary: 'Grupo actualizado', detail: `"${updated.nombre}" se actualizó.` });
                     this.dialogVisible = false;
-                    this.cdr.detectChanges();
+                    this.cdr.markForCheck();
                 },
                 error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo actualizar el grupo.' }),
             });
@@ -164,13 +206,21 @@ export class GruposComponent implements OnInit {
             this.ticketService.createGroup(payload).subscribe({
                 next: (created) => {
                     this.groups = [...this.groups, created];
+                    this.syncMembers(created.id, this.selectedMembers);
                     this.messageService.add({ severity: 'success', summary: 'Grupo creado', detail: `"${created.nombre}" se creó.` });
                     this.dialogVisible = false;
-                    this.cdr.detectChanges();
+                    this.cdr.markForCheck();
                 },
                 error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo crear el grupo.' }),
             });
         }
+    }
+
+    private syncMembers(grupoId: number, newIds: string[]): void {
+        const toAdd    = newIds.filter((id) => !this.currentMemberIds.includes(id));
+        const toRemove = this.currentMemberIds.filter((id) => !newIds.includes(id));
+        toAdd.forEach((id) => this.ticketService.addMember(grupoId, id).subscribe());
+        toRemove.forEach((id) => this.ticketService.removeMember(grupoId, id).subscribe());
     }
 
     deleteGroup(group: GroupInfo): void {
@@ -186,7 +236,7 @@ export class GruposComponent implements OnInit {
                     next: () => {
                         this.groups = this.groups.filter((g) => g.id !== group.id);
                         this.messageService.add({ severity: 'success', summary: 'Grupo eliminado', detail: `"${group.nombre}" fue eliminado.` });
-                        this.cdr.detectChanges();
+                        this.cdr.markForCheck();
                     },
                     error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo eliminar el grupo.' }),
                 });

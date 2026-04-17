@@ -52,6 +52,13 @@ export const routes: Routes = [
                     import('./pages/perfil/perfil.component').then((m) => m.PerfilComponent),
             },
             {
+                path: 'mis-tickets',
+                canActivate: [permissionGuard],
+                data: { permission: 'ticket:view' },
+                loadComponent: () =>
+                    import('./pages/mis-tickets/mis-tickets.component').then((m) => m.MisTicketsComponent),
+            },
+            {
                 path: 'tickets/:grupoId',
                 canActivate: [permissionGuard],
                 data: { permission: 'ticket:view' },

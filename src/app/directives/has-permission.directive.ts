@@ -15,6 +15,7 @@ import { PermissionService } from '../services/permission.service';
 })
 export class HasPermissionDirective implements DoCheck {
     @Input() hasPermission = '';
+    @Input() hasPermissionGroup?: string | number;
     private hasView = false;
 
     constructor(
@@ -24,7 +25,7 @@ export class HasPermissionDirective implements DoCheck {
     ) {}
 
     ngDoCheck(): void {
-        const allowed = this.permissionService.hasPermission(this.hasPermission);
+        const allowed = this.permissionService.hasPermission(this.hasPermission, this.hasPermissionGroup);
         if (allowed && !this.hasView) {
             this.viewContainer.createEmbeddedView(this.templateRef);
             this.hasView = true;

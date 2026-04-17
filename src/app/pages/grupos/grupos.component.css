@@ -134,3 +134,25 @@
 :host ::ng-deep .field-row .p-inputnumber .p-inputtext {
     width: 100%;
 }
+
+/* ── Author / members extra fields ───────────────────────────── */
+.field-hint {
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.required { color: #ef4444; }
+
+.members-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+:host ::ng-deep .field p-multiselect,
+:host ::ng-deep .field .p-multiselect {
+    width: 100%;
+}

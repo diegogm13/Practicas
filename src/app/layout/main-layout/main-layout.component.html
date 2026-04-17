@@ -14,6 +14,21 @@
             <p-menu [model]="menuItems" class="sidebar-nav-menu"></p-menu>
         </div>
 
+        <!-- Mis Grupos -->
+        @if (authService.hasPermission('group:view') && userGroups.length > 0) {
+        <div class="sidebar-groups">
+            <p class="sidebar-groups-title">
+                <i class="pi pi-users"></i> Mis Grupos
+            </p>
+            @for (g of userGroups; track g.id) {
+                <a class="sidebar-group-item" [routerLink]="['/dashboard/tickets', g.id]">
+                    <i class="pi pi-angle-right"></i>
+                    <span>{{ g.nombre }}</span>
+                </a>
+            }
+        </div>
+        }
+
         <!-- Footer: logout + version -->
         <div class="sidebar-footer">
             <p-button

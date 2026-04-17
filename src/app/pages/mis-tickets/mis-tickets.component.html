@@ -1,0 +1,129 @@
+<div class="page-container">
+
+    <div class="page-header">
+        <div class="header-left">
+            <h2><i class="pi pi-ticket"></i> Mis Tickets Asignados</h2>
+            <p>Tickets que tienes asignados o que creaste en todos los grupos.</p>
+        </div>
+    </div>
+
+    <!-- Selector de vista -->
+    <div class="view-toggle-bar">
+        <p-selectbutton
+            [options]="viewOptions"
+            [(ngModel)]="selectedView"
+            optionLabel="label"
+            optionValue="value"
+        >
+            <ng-template pTemplate="item" let-item>
+                <i [class]="item.icon"></i>
+                <span class="ml-2">{{ item.label }}</span>
+            </ng-template>
+        </p-selectbutton>
+    </div>
+
+    @if (loading) {
+    <div class="mis-tickets-loading">
+        <p-progressspinner strokeWidth="4" animationDuration=".8s"></p-progressspinner>
+        <p>Cargando tickets...</p>
+    </div>
+    }
+
+    @if (!loading && tickets.length === 0) {
+    <div class="empty-state">
+        <i class="pi pi-inbox empty-icon"></i>
+        <p>No tienes tickets asignados en ningún grupo.</p>
+    </div>
+    }
+
+    <!-- ── VISTA KANBAN ─────────────────────────────────────────── -->
+    @if (!loading && selectedView === 'kanban') {
+    <div class="kanban-board">
+        @for (estado of estados; track estado) {
+        <div class="kanban-column">
+            <div class="kanban-column-header" [class]="getEstadoClass(estado)">
+                <span class="kanban-column-title">{{ estado }}</span>
+                <span class="kanban-column-count">{{ ticketsByEstado(estado).length }}</span>
+            </div>
+            <div class="kanban-cards">
+                @for (ticket of ticketsByEstado(estado); track ticket.id) {
+                <div class="kanban-card" (click)="irAlGrupo(ticket)" pTooltip="Ir al tablero del grupo" tooltipPosition="top">
+                    <div class="kanban-card-header">
+                        <p-tag [value]="ticket.prioridad" [severity]="getPrioridadSeverity(ticket.prioridad)"></p-tag>
+                        <span class="grupo-badge">{{ ticket.grupoNombre }}</span>
+                    </div>
+                    <p class="kanban-card-title">{{ ticket.titulo }}</p>
+                    <p class="kanban-card-desc">{{ ticket.descripcion | slice:0:80 }}{{ ticket.descripcion.length > 80 ? '…' : '' }}</p>
+                    <div class="kanban-card-footer">
+                        <span class="fecha-limite">
+                            <i class="pi pi-calendar"></i>
+                            {{ ticket.fechaLimite | date:'dd/MM/yyyy' }}
+                        </span>
+                        <i class="pi pi-arrow-right goto-icon"></i>
+                    </div>
+                </div>
+                }
+                @if (ticketsByEstado(estado).length === 0) {
+                <div class="kanban-empty">Sin tickets</div>
+                }
+            </div>
+        </div>
+        }
+    </div>
+    }
+
+    <!-- ── VISTA LISTA ──────────────────────────────────────────── -->
+    @if (!loading && selectedView === 'lista') {
+    <p-table
+        [value]="tickets"
+        [paginator]="true"
+        [rows]="10"
+        responsiveLayout="scroll"
+        [stripedRows]="true"
+        class="mis-tickets-table"
+    >
+        <ng-template pTemplate="header">
+            <tr>
+                <th>Título</th>
+                <th>Grupo</th>
+                <th>Estado</th>
+                <th>Prioridad</th>
+                <th>Fecha Límite</th>
+                <th style="text-align:center">Ir al tablero</th>
+            </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-ticket>
+            <tr>
+                <td><strong>{{ ticket.titulo }}</strong></td>
+                <td>
+                    <span class="grupo-badge-table">{{ ticket.grupoNombre }}</span>
+                </td>
+                <td>
+                    <p-tag [value]="ticket.estado" [severity]="getEstadoSeverity(ticket.estado)"></p-tag>
+                </td>
+                <td>
+                    <p-tag [value]="ticket.prioridad" [severity]="getPrioridadSeverity(ticket.prioridad)"></p-tag>
+                </td>
+                <td>{{ ticket.fechaLimite | date:'dd/MM/yyyy' }}</td>
+                <td style="text-align:center">
+                    <p-button
+                        icon="pi pi-external-link"
+                        [text]="true"
+                        severity="info"
+                        (onClick)="irAlGrupo(ticket)"
+                        pTooltip="Ver tablero del grupo"
+                    ></p-button>
+                </td>
+            </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+            <tr>
+                <td colspan="6" style="text-align:center;padding:2rem;color:#94a3b8">
+                    No tienes tickets asignados.
+                </td>
+            </tr>
+        </ng-template>
+    </p-table>
+    }
+
+</div>

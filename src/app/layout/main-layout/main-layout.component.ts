@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule, NavigationEnd } from '@angular/router';
 import { MenuItem } from 'primeng/api';
@@ -6,6 +6,7 @@ import { ButtonModule } from 'primeng/button';
 import { MenuModule } from 'primeng/menu';
 import { BreadcrumbModule } from 'primeng/breadcrumb';
 import { AuthService } from '../../services/auth.service';
+import { TicketService, GroupInfo } from '../../services/ticket.service';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
@@ -15,9 +16,11 @@ import { filter } from 'rxjs/operators';
     imports: [CommonModule, RouterModule, ButtonModule, MenuModule, BreadcrumbModule],
     templateUrl: './main-layout.component.html',
     styleUrl: './main-layout.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
     isLoggedIn = false;
+    userGroups: GroupInfo[] = [];
 
     menuItems: MenuItem[] = [];
 
@@ -27,8 +30,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     private routerSub!: Subscription;
 
     constructor(
-        private authService: AuthService,
-        private router: Router
+        public authService: AuthService,
+        private router: Router,
+        private ticketService: TicketService,
+        private cdr: ChangeDetectorRef,
     ) {}
 
     ngOnInit(): void {
@@ -37,17 +42,33 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
         this.updateBreadcrumb(this.router.url);
 
         // Update breadcrumb on every navigation
+        this.loadUserGroups();
+
         this.routerSub = this.router.events
             .pipe(filter((e) => e instanceof NavigationEnd))
             .subscribe((e: any) => {
                 this.isLoggedIn = this.authService.isLoggedIn();
                 this.buildMenu();
                 this.updateBreadcrumb(e.urlAfterRedirects ?? e.url);
+                this.loadUserGroups();
+                this.cdr.markForCheck();
             });
     }
 
     ngOnDestroy(): void {
         this.routerSub?.unsubscribe();
+    }
+
+    private loadUserGroups(): void {
+        if (!this.authService.isLoggedIn() || !this.authService.hasPermission('group:view')) {
+            this.userGroups = [];
+            this.cdr.markForCheck();
+            return;
+        }
+        this.ticketService.getGroups().subscribe((gs) => {
+            this.userGroups = gs;
+            this.cdr.markForCheck();
+        });
     }
 
     buildMenu(): void {
@@ -75,6 +96,13 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
                 visible: this.authService.hasPermission('users:view'),
             },
             {
+                label: 'Mis Tickets',
+                icon: 'pi pi-ticket',
+                routerLink: '/dashboard/mis-tickets',
+                styleClass: url.includes('/dashboard/mis-tickets') ? 'menu-active-item' : '',
+                visible: this.authService.hasPermission('ticket:view'),
+            },
+            {
                 label: 'Perfil',
                 icon: 'pi pi-user',
                 routerLink: '/dashboard/perfil',
@@ -89,6 +117,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
             const grupoNames: Record<string, string> = { '1': 'Grupo Alpha', '2': 'Grupo Beta', '3': 'Grupo Gamma' };
             const nombre = grupoNames[grupoId] ?? `Grupo ${grupoId}`;
             this.breadcrumbItems = [{ label: 'Grupos', routerLink: '/dashboard/grupos' }, { label: `Tickets — ${nombre}` }];
+        } else if (url.includes('/dashboard/mis-tickets')) {
+            this.breadcrumbItems = [{ label: 'Mis Tickets' }];
         } else if (url.includes('/dashboard/grupos')) {
             this.breadcrumbItems = [{ label: 'Grupos' }];
         } else if (url.includes('/dashboard/usuarios')) {

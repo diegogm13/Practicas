@@ -156,10 +156,38 @@ export class AuthService {
         return [...ALL_PERMISSIONS];
     }
 
+    getPermissionCatalog(): Observable<{ clave: string; descripcion: string }[]> {
+        return this.http
+            .get<{ data: { clave: string; descripcion: string }[] }>(`${API}/users/permissions`, this.authHeaders())
+            .pipe(map(res => res.data ?? []), catchError(() => of([])));
+    }
+
     // ── User management HTTP API ─────────────────────────────────────────────
 
     private authHeaders() {
         return { headers: new HttpHeaders({ Authorization: `Bearer ${this.getToken() ?? ''}` }) };
+    }
+
+    createUser(data: {
+        nombre: string;
+        apellido: string;
+        email: string;
+        activo: boolean;
+        grupo_id?: number | null;
+    }): Observable<{ success: boolean; message: string; id?: string }> {
+        const body: any = {
+            nombre: data.nombre,
+            apellido: data.apellido,
+            email: data.email,
+            activo: data.activo,
+        };
+        if (data.grupo_id) body.grupo_id = data.grupo_id;
+        return this.http
+            .post<any>(`${API}/users`, body, this.authHeaders())
+            .pipe(
+                map((res) => ({ success: true, message: res.message ?? 'Usuario creado', id: res.data?.id })),
+                catchError((err) => of({ success: false, message: err.error?.message ?? 'Error al crear usuario.' }))
+            );
     }
 
     getUsers(): Observable<BackendUser[]> {

@@ -26,8 +26,8 @@
     </div>
     }
 
-    <!-- Stats cards (only when logged in and data ready) -->
-    @if (isLoggedIn && !loading) {
+    <!-- Stats cards — solo si tiene permiso ticket:view -->
+    @if (isLoggedIn && !loading && hasPermission('ticket:view')) {
     <div class="stats-grid">
         <div class="stat-card stat-total">
             <div class="stat-icon"><i class="pi pi-ticket"></i></div>
@@ -65,9 +65,13 @@
             </div>
         </div>
     </div>
+    }
 
+    @if (isLoggedIn && !loading) {
     <!-- Chart + Quick access -->
     <div class="dashboard-main">
+
+        @if (hasPermission('ticket:view')) {
         <p-card class="chart-card">
             <ng-template pTemplate="header">
                 <div class="chart-card-header">
@@ -79,8 +83,10 @@
                 <p-chart type="pie" [data]="chartData" [options]="chartOptions" height="280px"></p-chart>
             </div>
         </p-card>
+        }
 
         <div class="quick-access-col">
+            @if (hasPermission('group:view')) {
             <p-card class="quick-card" [routerLink]="['/dashboard/grupos']">
                 <div class="quick-card-content">
                     <div class="quick-icon-box blue"><i class="pi pi-users"></i></div>
@@ -91,6 +97,7 @@
                     <i class="pi pi-chevron-right quick-arrow"></i>
                 </div>
             </p-card>
+            }
 
             <p-card class="quick-card" [routerLink]="['/dashboard/perfil']">
                 <div class="quick-card-content">
@@ -103,6 +110,7 @@
                 </div>
             </p-card>
 
+            @if (hasPermission('users:view')) {
             <p-card class="quick-card" [routerLink]="['/dashboard/usuarios']">
                 <div class="quick-card-content">
                     <div class="quick-icon-box orange"><i class="pi pi-user-edit"></i></div>
@@ -113,10 +121,26 @@
                     <i class="pi pi-chevron-right quick-arrow"></i>
                 </div>
             </p-card>
+            }
+
+            @if (hasPermission('ticket:view')) {
+            <p-card class="quick-card" [routerLink]="['/dashboard/mis-tickets']">
+                <div class="quick-card-content">
+                    <div class="quick-icon-box purple"><i class="pi pi-ticket"></i></div>
+                    <div class="quick-info">
+                        <span class="quick-title">Mis Tickets</span>
+                        <span class="quick-desc">Tickets asignados a ti</span>
+                    </div>
+                    <i class="pi pi-chevron-right quick-arrow"></i>
+                </div>
+            </p-card>
+            }
         </div>
     </div>
+
     <!-- Mis Grupos + Mis Tickets -->
     <div class="user-section">
+        @if (hasPermission('group:view')) {
         <p-card class="user-section-card">
             <ng-template pTemplate="header">
                 <div class="section-header">
@@ -137,33 +161,46 @@
                 </div>
             }
         </p-card>
+        }
 
-        <p-card class="user-section-card">
+        @if (hasPermission('ticket:view')) {
+        <p-card class="user-section-card" id="mis-tickets">
             <ng-template pTemplate="header">
                 <div class="section-header">
                     <i class="pi pi-ticket"></i>
-                    <span>Mis Tickets</span>
+                    <span>Mis Tickets Asignados</span>
                 </div>
             </ng-template>
             @if (userTickets.length === 0) {
                 <p class="empty-msg">No tienes tickets asignados.</p>
-            }
-            @for (ticket of userTickets; track ticket.id) {
-                <div class="user-ticket-row">
-                    <span class="ticket-row-title">{{ ticket.titulo }}</span>
-                    <div class="ticket-row-tags">
-                        <p-tag [value]="ticket.estado" [severity]="ticketStateSeverity(ticket.estado)"></p-tag>
-                        <p-tag [value]="ticket.prioridad" [severity]="ticketPrioritySeverity(ticket.prioridad)"></p-tag>
-                    </div>
+            } @else {
+                <div class="tickets-paged-list">
+                    @for (ticket of paginatedTickets; track ticket.id) {
+                        <div class="user-ticket-row">
+                            <span class="ticket-row-title">{{ ticket.titulo }}</span>
+                            <div class="ticket-row-tags">
+                                <p-tag [value]="ticket.estado" [severity]="ticketStateSeverity(ticket.estado)" size="small"></p-tag>
+                                <p-tag [value]="ticket.prioridad" [severity]="ticketPrioritySeverity(ticket.prioridad)" size="small"></p-tag>
+                            </div>
+                        </div>
+                    }
                 </div>
+                
+                @if (userTickets.length > 3) {
+                    <div class="list-pagination">
+                        <p-button icon="pi pi-chevron-left" [text]="true" (onClick)="prevTickets()" [disabled]="ticketStartIndex === 0"></p-button>
+                        <span class="page-info">{{ ticketStartIndex + 1 }} - {{ (ticketStartIndex + 3 > userTickets.length) ? userTickets.length : (ticketStartIndex + 3) }} de {{ userTickets.length }}</span>
+                        <p-button icon="pi pi-chevron-right" [text]="true" (onClick)="nextTickets()" [disabled]="ticketStartIndex + 3 >= userTickets.length"></p-button>
+                    </div>
+                }
             }
         </p-card>
+        }
     </div>
 
-    } @else {
-    <!-- Quick access cards for guests -->
+    } @else if (!isLoggedIn) {
+    <!-- Quick access cards para invitados -->
     <div class="quick-access-grid">
-
         <p-card class="quick-card" [routerLink]="['/dashboard/grupos']">
             <div class="quick-card-content">
                 <div class="quick-icon-box blue"><i class="pi pi-users"></i></div>

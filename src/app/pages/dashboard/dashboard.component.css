@@ -217,6 +217,11 @@
     color: #f97316;
 }
 
+.quick-icon-box.purple {
+    background: #f5f3ff;
+    color: #7c3aed;
+}
+
 .quick-info {
     flex: 1;
     display: flex;
@@ -248,7 +253,7 @@
 }
 
 @media (max-width: 700px) {
-    .user-section { grid-template-columns: 1fr; }
+    .user-section { gap: 1rem; }
 }
 
 :host ::ng-deep .user-section-card {
@@ -297,8 +302,14 @@
     font-size: 0.85rem;
 }
 
+.tickets-paged-list {
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+}
+
 .user-ticket-row {
-    padding: 0.6rem 0.25rem;
+    padding: 0.75rem 0.25rem;
     border-bottom: 1px solid #f1f5f9;
 }
 
@@ -313,12 +324,26 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 320px;
 }
 
 .ticket-row-tags {
     display: flex;
     gap: 0.4rem;
+}
+
+.list-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f8fafc;
+}
+
+.page-info {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 500;
 }
 
 .empty-msg {

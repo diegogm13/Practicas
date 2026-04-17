@@ -38,6 +38,7 @@ export interface Ticket {
 
 export interface GroupMember {
     id: number;
+    userId: string;
     email: string;
     nombre: string;
     grupoId: number;
@@ -115,12 +116,23 @@ export class TicketService {
             );
     }
 
+    /** Devuelve solo los tickets asignados al usuario actual (filtrado en el backend) */
+    getMyTickets(): Observable<Ticket[]> {
+        return this.http
+            .get<{ statusCode: number; intOpCode: string; data: any[] }>(`${API}/tickets?mine=true`, this.options())
+            .pipe(
+                map((res) => (res.data ?? []).map((t) => this.adaptTicket(t))),
+                catchError(() => of([]))
+            );
+    }
+
     createTicket(payload: {
         titulo: string;
         descripcion: string;
         prioridad?: string;
         fecha_limite: string;
         grupo_id: number;
+        asignado_a?: string | null;
     }): Observable<Ticket> {
         return this.http
             .post<{ statusCode: number; intOpCode: string; data: any }>(`${API}/tickets`, payload, this.options())
@@ -135,6 +147,7 @@ export class TicketService {
         if (changes.descripcion !== undefined) putBody.descripcion = changes.descripcion;
         if (changes.prioridad !== undefined) putBody.prioridad = changes.prioridad;
         if (changes.fechaLimite !== undefined) putBody.fecha_limite = this.toDateStr(changes.fechaLimite);
+        if (changes.asignadoA !== undefined) putBody.asignado_a = changes.asignadoA || null;
 
         if (Object.keys(putBody).length > 0) {
             ops.push(this.http.put(`${API}/tickets/${id}`, putBody, this.options()));
@@ -189,7 +202,7 @@ export class TicketService {
             );
     }
 
-    createGroup(payload: { nombre: string; categoria: string; nivel: string }): Observable<GroupInfo> {
+    createGroup(payload: { nombre: string; categoria: string; nivel: string; autor_email?: string }): Observable<GroupInfo> {
         return this.http
             .post<{ statusCode: number; intOpCode: string; data: any }>(`${API}/groups`, payload, this.options())
             .pipe(
@@ -203,7 +216,7 @@ export class TicketService {
             );
     }
 
-    updateGroup(id: number, payload: { nombre: string; categoria: string; nivel: string }): Observable<GroupInfo> {
+    updateGroup(id: number, payload: { nombre: string; categoria: string; nivel: string; autor_email?: string }): Observable<GroupInfo> {
         return this.http
             .put<{ statusCode: number; intOpCode: string; data: any }>(`${API}/groups/${id}`, payload, this.options())
             .pipe(
@@ -230,6 +243,7 @@ export class TicketService {
                 map((res) =>
                     (res.data ?? []).map((m) => ({
                         id: m.id,
+                        userId: m.usuario_id ?? '',
                         grupoId,
                         email: m.usuarios?.email ?? '',
                         nombre: m.usuarios?.full_name ?? m.usuarios?.email ?? '',
@@ -237,6 +251,30 @@ export class TicketService {
                 ),
                 catchError(() => of([]))
             );
+    }
+
+    addMember(grupoId: number, usuarioId: string): Observable<boolean> {
+        return this.http
+            .post<any>(`${API}/groups/${grupoId}/members`, { usuario_id: usuarioId }, this.options())
+            .pipe(map(() => true), catchError(() => of(false)));
+    }
+
+    removeMember(grupoId: number, usuarioId: string): Observable<boolean> {
+        return this.http
+            .delete(`${API}/groups/${grupoId}/members/${usuarioId}`, this.options())
+            .pipe(map(() => true), catchError(() => of(false)));
+    }
+
+    getMemberPermissions(grupoId: number, usuarioId: string): Observable<string[]> {
+        return this.http
+            .get<{ statusCode: number; intOpCode: string; data: string[] }>(`${API}/groups/${grupoId}/member-permissions/${usuarioId}`, this.options())
+            .pipe(map(res => res.data ?? []), catchError(() => of([])));
+    }
+
+    saveMemberPermissions(grupoId: number, usuarioId: string, permissions: string[]): Observable<boolean> {
+        return this.http
+            .put<any>(`${API}/groups/${grupoId}/member-permissions/${usuarioId}`, { permissions }, this.options())
+            .pipe(map(() => true), catchError(() => of(false)));
     }
 
     // ── Stats (computed client-side from all tickets) ─────────────────────────

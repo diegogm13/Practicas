@@ -16,11 +16,20 @@ export class PermissionService {
 
     /**
      * Verifica si el usuario actual tiene el permiso indicado.
-     * Lee del localStorage donde AuthService guarda los datos del usuario.
+     * Si se provee un groupId, verifica si tiene el permiso específicamente en ese grupo.
      */
-    hasPermission(permission: string): boolean {
+    hasPermission(permission: string, groupId?: string | number): boolean {
         const stored = this.getStoredUser();
-        return stored?.permissions?.includes(permission) ?? false;
+        if (!stored) return false;
+
+        // Si hay un grupo específico, el permiso DEBE estar en ese grupo (modelo estricto)
+        if (groupId) {
+            const gPerms = stored.groupPermissions?.[String(groupId)] ?? [];
+            return gPerms.includes(permission);
+        }
+
+        // Si no hay grupo, se verifica a nivel global
+        return stored.permissions?.includes(permission) ?? false;
     }
 
     /**

@@ -10,13 +10,11 @@
 
 <div class="page-container" [style.display]="loading ? 'none' : 'block'">
 
-    <!-- Header -->
     <div class="page-header">
         <h2>Grupos</h2>
         <p>Gestión y administración de grupos registrados en el sistema.</p>
     </div>
 
-    <!-- Toolbar -->
     <p-toolbar class="grupos-toolbar">
         <ng-template pTemplate="start">
             <p-button
@@ -31,7 +29,6 @@
         </ng-template>
     </p-toolbar>
 
-    <!-- Table -->
     <p-table
         [value]="groups"
         [paginator]="true"
@@ -110,7 +107,7 @@
     [(visible)]="dialogVisible"
     [header]="isEditMode ? 'Editar Grupo' : 'Nuevo Grupo'"
     [modal]="true"
-    [style]="{ width: '500px' }"
+    [style]="{ width: '560px' }"
     [closable]="true"
     (onHide)="closeDialog()"
 >
@@ -165,6 +162,48 @@
             }
         </div>
 
+        <!-- Autor -->
+        <div class="field">
+            <label for="autor_email">Autor <span class="required">*</span></label>
+            <input
+                id="autor_email"
+                type="text"
+                pInputText
+                formControlName="autor_email"
+                placeholder="correo@ejemplo.com"
+                [class.ng-invalid]="isInvalid('autor_email')"
+                [class.ng-dirty]="isInvalid('autor_email')"
+            />
+            <small class="field-hint">Se rellena automáticamente con tu correo.</small>
+            @if (isInvalid('autor_email')) {
+                <small class="p-error">Correo del autor requerido.</small>
+            }
+        </div>
+
+        <!-- Miembros -->
+        <div class="field">
+            <label>Miembros</label>
+            @if (loadingMembers) {
+                <div class="members-loading">
+                    <p-progressspinner strokeWidth="4" [style]="{width:'24px',height:'24px'}"></p-progressspinner>
+                    <span>Cargando miembros...</span>
+                </div>
+            } @else {
+            <p-multiselect
+                [options]="availableUsers"
+                [(ngModel)]="selectedMembers"
+                [ngModelOptions]="{standalone: true}"
+                placeholder="Selecciona miembros"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+                [filter]="true"
+                filterPlaceholder="Buscar usuario..."
+                [showClear]="true"
+                emptyMessage="No hay usuarios disponibles"
+            ></p-multiselect>
+            }
+        </div>
 
     </form>
 
@@ -177,7 +216,7 @@
             (onClick)="closeDialog()"
         ></p-button>
         <p-button
-            [label]="isEditMode ? 'Actualizar' : 'Guardar'"
+            [label]="isEditMode ? 'Actualizar' : 'Crear Grupo'"
             icon="pi pi-check"
             (onClick)="saveGroup()"
         ></p-button>

@@ -18,7 +18,7 @@
             </div>
             
             <p-button
-                *hasPermission="'ticket:add'"
+                *hasPermission="'ticket:add'; group: grupoId"
                 label="Nuevo Ticket"
                 icon="pi pi-plus"
                 (onClick)="openNew()"
@@ -66,6 +66,7 @@
                         ></p-tag>
                         <div class="kanban-card-actions" (click)="$event.stopPropagation()">
                             <p-button
+                                *hasPermission="'ticket:edit'; group: ticket.grupoId"
                                 icon="pi pi-pencil"
                                 [text]="true"
                                 severity="info"
@@ -73,6 +74,7 @@
                                 (onClick)="openEdit(ticket)"
                             ></p-button>
                             <p-button
+                                *hasPermission="'ticket:delete'; group: ticket.grupoId"
                                 icon="pi pi-trash"
                                 [text]="true"
                                 severity="danger"
@@ -83,8 +85,8 @@
                     </div>
                     <p class="kanban-card-title">{{ ticket.titulo }}</p>
                     <div class="kanban-card-footer">
-                        <span class="kanban-card-user" [title]="'Asignado: ' + ticket.asignadoA">
-                            <i class="pi pi-user"></i> {{ (ticket.asignadoA | slice:0:15) || 'Libre' }}
+                        <span class="kanban-card-user" [title]="'Asignado: ' + getMemberName(ticket.asignadoA)">
+                            <i class="pi pi-user"></i> {{ getMemberName(ticket.asignadoA) }}
                         </span>
                     </div>
                 </div>
@@ -115,11 +117,11 @@
                 <td><strong (click)="openDetail(ticket)" class="cursor-pointer">{{ ticket.titulo }}</strong></td>
                 <td><span [class]="'estado-badge ' + getEstadoClass(ticket.estado)">{{ ticket.estado }}</span></td>
                 <td><p-tag [value]="ticket.prioridad" [severity]="getPrioridadSeverity(ticket.prioridad)"></p-tag></td>
-                <td>{{ ticket.asignadoA || 'No asignado' }}</td>
+                <td>{{ getMemberName(ticket.asignadoA) }}</td>
                 <td>{{ ticket.creador }}</td>
                 <td style="text-align:center">
                     <p-button icon="pi pi-eye" [text]="true" (onClick)="openDetail(ticket)"></p-button>
-                    <p-button icon="pi pi-pencil" [text]="true" severity="info" (onClick)="openEdit(ticket)"></p-button>
+                    <p-button *hasPermission="'ticket:edit'; group: ticket.grupoId" icon="pi pi-pencil" [text]="true" severity="info" (onClick)="openEdit(ticket)"></p-button>
                 </td>
             </tr>
         </ng-template>
@@ -143,19 +145,23 @@
             <div class="col-6">
                 <div class="field">
                     <label>Estado</label>
-                    <p-select formControlName="estado" [options]="estadoOptions"></p-select>
+                    <p-select formControlName="estado" [options]="estadoOptions" appendTo="body"></p-select>
                 </div>
             </div>
             <div class="col-6">
                 <div class="field">
                     <label>Prioridad</label>
-                    <p-select formControlName="prioridad" [options]="prioridadOptions"></p-select>
+                    <p-select formControlName="prioridad" [options]="prioridadOptions" appendTo="body"></p-select>
                 </div>
             </div>
         </div>
         <div class="field">
             <label>Fecha Límite</label>
-            <p-datepicker formControlName="fechaLimite" [showIcon]="true"></p-datepicker>
+            <p-datepicker formControlName="fechaLimite" [showIcon]="true" appendTo="body"></p-datepicker>
+        </div>
+        <div class="field">
+            <label>Asignado a</label>
+            <p-select formControlName="asignadoA" [options]="memberOptions" optionLabel="label" optionValue="value" placeholder="Sin asignar" [filter]="true" appendTo="body"></p-select>
         </div>
     </form>
     <ng-template pTemplate="footer">
@@ -172,7 +178,7 @@
         <p>{{ selectedTicket.descripcion }}</p>
         <div class="detail-meta-grid">
             <div><i class="pi pi-user-edit"></i> <b>Creador:</b> {{ selectedTicket.creador }}</div>
-            <div><i class="pi pi-user"></i> <b>Asignado:</b> {{ selectedTicket.asignadoA }}</div>
+            <div><i class="pi pi-user"></i> <b>Asignado:</b> {{ getMemberName(selectedTicket.asignadoA) }}</div>
             <div><i class="pi pi-calendar"></i> <b>Límite:</b> {{ selectedTicket.fechaLimite | date }}</div>
         </div>
         <p-tabs [value]="0" class="mt-4">
