@@ -174,6 +174,8 @@ export class TicketsComponent implements OnInit {
     }
 
     canEditTicket(ticket: Ticket): boolean {
+        // No se puede editar si está Finalizado
+        if (ticket.estado === 'Finalizado') return false;
         // Solo el creador, asignado, o alguien con permisos globales pueden editar
         return (
             ticket.creador === this.currentUserId ||
